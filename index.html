@@ -4,7 +4,731 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BDM Starter</title>
-  <link rel="stylesheet" href="styles.css" />
+  <style>
+
+:root{
+  --bg:#f1f1ef;
+  --panel:#ffffff;
+  --ink:#20201e;
+  --muted:#6d6d68;
+  --blue:#65717b;
+  --teal:#777e72;
+  --green:#58715e;
+  --amber:#d6a62a;
+  --orange:#c98327;
+  --red:#b84b43;
+  --line:#deded8;
+  --shadow:0 8px 22px rgba(25,25,22,.10);
+  --brand:#0f4a43;
+  --charcoal:#20201e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink)}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+.app-shell{max-width:720px;margin:0 auto;min-height:100vh;padding-bottom:92px}
+.topbar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:20px 20px 12px;background:rgba(245,247,246,.96);backdrop-filter:blur(8px)}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--teal)}
+h1{font-size:30px;margin:3px 0 0} h2{font-size:20px;margin:0}
+.icon-btn{width:46px;height:46px;border:0;border-radius:15px;background:var(--panel);box-shadow:var(--shadow);font-size:24px;color:var(--ink)}
+main{padding:8px 18px 24px}
+.hero{background:linear-gradient(135deg,#dcefe9,#eef6f4);border-radius:28px;padding:24px;display:flex;align-items:end;justify-content:space-between;gap:16px;box-shadow:var(--shadow)}
+.hero-number{font-size:54px;line-height:.95;font-weight:800}
+.hero-label{margin-top:8px;color:#4f6560;max-width:190px;font-weight:600}
+.primary-btn{border:0;border-radius:16px;padding:15px 18px;background:var(--ink);color:white;font-weight:800}
+.stats-grid,.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.stat-card,.action-card{border:0;text-align:left;background:var(--panel);border-radius:22px;padding:18px;box-shadow:var(--shadow);color:var(--ink)}
+.stat-card{border-top:5px solid var(--blue);min-height:132px}
+.stat-card.urgent{border-color:var(--red)} .stat-card.warning{border-color:var(--amber)} .stat-card.positive{border-color:var(--teal)} .stat-card.neutral{border-color:var(--blue)}
+.stat-card .big{display:block;font-size:34px;font-weight:800;margin-bottom:3px}
+.stat-card span:not(.big){font-weight:800;display:block}.stat-card small,.action-card small{display:block;color:var(--muted);margin-top:5px}
+.section{margin-top:28px}.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.action-card span{display:block;font-size:28px;margin-bottom:14px}.action-card b{display:block}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(720px,100%);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 12px 14px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);backdrop-filter:blur(8px);z-index:10}
+.nav-btn{border:0;background:none;color:#83918d;padding:4px}.nav-btn span{display:block;font-size:23px;line-height:1}.nav-btn small{display:block;margin-top:5px}.nav-btn.active{color:var(--teal);font-weight:800}
+.list{display:grid;gap:12px}.group-card,.report-card,.history-card,.customer-card,.form-card{background:var(--panel);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
+.group-card,.report-card{border:0;text-align:left;color:var(--ink);width:100%}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.badge{display:inline-block;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800;background:#edf2f0;color:#48615a}
+.badge.red{background:#fae8e8;color:#9d4040}.badge.amber{background:#edf3f1;color:#3e5e57}.badge.green{background:#e4f3e7;color:#397246}.badge.blue{background:#e8f0fa;color:#3f6389}
+.metric{font-size:28px;font-weight:800}.muted{color:var(--muted)} .sub{font-size:13px;color:var(--muted)}
+.customer-card h2{font-size:27px;margin-bottom:2px}.phone{display:block;margin:14px 0;background:#e6f3ef;border-radius:16px;padding:15px;text-align:center;font-size:22px;font-weight:800;color:#2c6f63;text-decoration:none}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fact{background:#f6f8f7;border-radius:16px;padding:12px}.fact b{display:block;font-size:17px}.fact small{color:var(--muted)}
+.offer{margin-top:14px;padding:14px;border-radius:16px;background:#edf3f1;border:1px solid #d7e4e0}.offer b{display:block}
+.progress{height:8px;background:#e7eeeb;border-radius:999px;overflow:hidden;margin:12px 0 20px}.progress > div{height:100%;background:var(--teal)}
+.quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.quick-actions button,.wide-btn{border:0;border-radius:16px;padding:16px;font-weight:800;background:#edf2f0;color:var(--ink)}.quick-actions .good{background:#dff0eb;color:#28675d}.quick-actions .warn{background:#edf3f1;color:#3e5e57}.quick-actions .bad{background:#f8e6e6;color:#9a4242}.wide-btn{width:100%;margin-top:10px;background:var(--ink);color:white}
+.field{margin-top:13px}.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px;color:#50655f}.field input,.field textarea,.field select{width:100%;border:1px solid #dce5e1;border-radius:14px;padding:13px;background:white;color:var(--ink)}textarea{min-height:90px;resize:vertical}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px}.pill{border:1px solid #dce5e1;background:white;border-radius:999px;padding:10px 12px}.pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.success{padding:16px;border-radius:18px;background:#e2f3ea;color:#2d6a50;font-weight:800;margin-bottom:15px}
+@media (max-width:430px){.hero{align-items:stretch;flex-direction:column}.primary-btn{width:100%}.stats-grid,.action-grid{grid-template-columns:1fr 1fr}.facts{grid-template-columns:1fr 1fr}}
+
+.file-drop{display:block;border:2px dashed #cddbd6;border-radius:20px;padding:24px;text-align:center;background:#fbfcfc;margin-top:14px}
+.file-drop input{display:none}
+.file-drop b{display:block;font-size:18px;margin-bottom:4px}
+.import-status{margin-top:14px;padding:14px;border-radius:16px;background:#eef5f3;color:#345f56}
+.import-status.error{background:#f8e7e7;color:#8d4242}
+.snapshot-card{background:#fff;border-radius:18px;padding:14px 16px;box-shadow:var(--shadow);margin-top:10px}
+.snapshot-card .row{align-items:flex-start}
+.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.kpi-mini{background:#f4f7f6;border-radius:14px;padding:10px;text-align:center}
+.kpi-mini b{display:block;font-size:20px}
+.kpi-mini small{color:var(--muted)}
+
+/* V3 mobile dashboard */
+.dashboard-block{margin-top:18px}
+.dashboard-title{font-size:15px;font-weight:800;color:var(--muted);margin:0 0 10px 2px}
+.kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpi-card{background:var(--panel);border:0;border-radius:20px;padding:16px;text-align:left;box-shadow:var(--shadow);color:var(--ink);min-height:108px}
+.kpi-card .kpi-value{font-size:29px;line-height:1;font-weight:850;display:block;margin-bottom:7px}
+.kpi-card .kpi-label{font-size:14px;font-weight:800;display:block}
+.kpi-card .kpi-sub{font-size:12px;color:var(--muted);margin-top:4px;display:block}
+.kpi-card.alert{border-left:5px solid var(--red)}
+.kpi-card.warn{border-left:5px solid var(--amber)}
+.kpi-card.good{border-left:5px solid var(--teal)}
+.kpi-card.blue{border-left:5px solid var(--blue)}
+.lead-summary{display:grid;grid-template-columns:1fr;gap:10px}
+.lead-row{background:var(--panel);border-radius:18px;padding:14px 16px;box-shadow:var(--shadow)}
+.lead-row .bar-wrap{height:9px;background:#edf2f0;border-radius:999px;overflow:hidden;margin-top:9px}
+.lead-row .bar{height:100%;background:var(--teal);border-radius:999px}
+.top-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.top-summary .summary-tile{background:rgba(255,255,255,.8);border-radius:18px;padding:14px}
+.summary-tile b{font-size:24px;display:block}
+.summary-tile small{color:var(--muted)}
+.lead-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.badge.overdue{background:#fae8e8;color:#9d4040}
+.badge.today{background:#edf3f1;color:#3e5e57}
+.badge.open{background:#e8f0fa;color:#3f6389}
+@media (max-width:520px){
+  .app-shell{max-width:none}
+  .topbar{padding:15px 14px 10px}
+  main{padding:6px 12px 20px}
+  h1{font-size:26px}
+  .hero{border-radius:22px;padding:18px}
+  .hero-number{font-size:46px}
+  .stats-grid,.action-grid,.kpi-grid{grid-template-columns:1fr 1fr;gap:9px}
+  .stat-card,.action-card,.kpi-card{border-radius:18px;padding:14px}
+  .stat-card{min-height:118px}
+  .action-card{min-height:110px}
+  .customer-card,.form-card,.group-card,.report-card,.history-card{border-radius:18px;padding:15px}
+  .phone{font-size:20px}
+  .bottom-nav{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
+@media (max-width:360px){
+  .kpi-grid,.stats-grid,.action-grid{grid-template-columns:1fr}
+  .facts,.lead-form-grid{grid-template-columns:1fr}
+}
+
+/* V4 */
+.period-banner{background:var(--ink);color:#fff;border-radius:22px;padding:17px 18px;margin-bottom:12px;box-shadow:var(--shadow)}
+.period-banner .period-code{font-size:28px;font-weight:900}.period-banner .period-dates{font-size:12px;opacity:.72;margin-top:3px}.action-lanes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}.action-lane{border:0;border-radius:22px;padding:18px;text-align:left;box-shadow:var(--shadow);color:var(--ink);min-height:155px}.action-lane.follow{background:#eef4f2;border-bottom:5px solid #6d8e86}.action-lane.calls{background:#e7f3f0;border-bottom:5px solid var(--teal)}.action-lane .lane-icon{font-size:28px;display:block;margin-bottom:10px}.action-lane .lane-value{font-size:35px;line-height:1;font-weight:900;display:block}.action-lane .lane-label{display:block;font-size:16px;font-weight:850;margin-top:7px}.action-lane .lane-sub{display:block;font-size:12px;color:var(--muted);margin-top:4px}.period-table{display:grid;gap:9px}.period-row{background:var(--panel);border-radius:18px;padding:14px 15px;box-shadow:var(--shadow)}.period-row.current{border-left:5px solid var(--teal)}.period-row .period-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.period-row .period-name{font-weight:900}.period-row .period-values{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.period-row .period-values div{background:#f5f8f7;border-radius:12px;padding:9px}.period-row .period-values b{display:block;font-size:16px}.period-row .period-values small{color:var(--muted);font-size:11px}.category-grid{display:grid;grid-template-columns:1fr;gap:8px}.category-row{background:var(--panel);border-radius:17px;padding:13px 14px;box-shadow:var(--shadow)}.category-row .category-stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}.category-row .category-stats span{font-size:12px;color:var(--muted)}.category-row .category-stats b{color:var(--ink)}.lead-period{font-size:12px;font-weight:800;color:var(--teal)}
+@media(max-width:420px){.action-lanes{grid-template-columns:1fr 1fr}.action-lane{padding:15px;min-height:145px}.action-lane .lane-value{font-size:32px}.period-row .period-values{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:340px){.action-lanes{grid-template-columns:1fr}}
+
+/* V5 navigation + settings */
+.settings-card{background:var(--panel);border-radius:20px;padding:16px;box-shadow:var(--shadow);margin-top:12px}
+.message-card{background:#eef6f3;border:1px solid #dcebe6;border-radius:18px;padding:14px;margin-top:10px}
+.message-card b{display:block;margin-bottom:4px}
+.call-category-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.call-category{border:0;border-radius:20px;padding:16px;text-align:left;box-shadow:var(--shadow);background:var(--panel);color:var(--ink);min-height:125px}
+.call-category .count{font-size:31px;font-weight:900;display:block}
+.call-category .name{font-weight:850;display:block;margin-top:5px}
+.call-category .msg{font-size:12px;color:var(--muted);display:block;margin-top:5px}
+.toolbar{display:flex;gap:8px;overflow:auto;padding-bottom:3px;margin-bottom:12px}
+.filter-btn{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 12px;white-space:nowrap;color:var(--ink);font-weight:750}
+.filter-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stat-section{margin-top:18px}
+.stat-section-title{font-size:14px;font-weight:850;color:var(--muted);margin:0 0 9px 2px}
+.metric-stack{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.metric-box{background:var(--panel);border-radius:18px;padding:15px;box-shadow:var(--shadow)}
+.metric-box b{font-size:28px;display:block;line-height:1.05}
+.metric-box span{font-size:13px;font-weight:800;display:block;margin-top:6px}
+.metric-box small{color:var(--muted);display:block;margin-top:3px}
+.small-note{font-size:11px;color:var(--muted)}
+.setting-row{margin-top:12px}
+.setting-row label{font-size:12px;font-weight:800;display:block;margin-bottom:5px;color:var(--muted)}
+.setting-row textarea,.setting-row input{width:100%;border:1px solid #dce5e1;border-radius:14px;padding:12px;background:#fff;color:var(--ink)}
+.settings-actions{display:flex;gap:8px;margin-top:12px}
+.settings-actions button{flex:1;border:0;border-radius:14px;padding:12px;font-weight:850}
+.settings-actions .save{background:var(--ink);color:#fff}
+.settings-actions .close{background:#edf2f0;color:var(--ink)}
+.header-tools{display:flex;gap:8px;align-items:center}
+@media (max-width:420px){
+  .call-category-grid,.metric-stack{grid-template-columns:1fr 1fr}
+}
+@media (max-width:340px){
+  .call-category-grid,.metric-stack{grid-template-columns:1fr}
+}
+
+/* V6 HANDSOME trade theme + multi-user PIN */
+body{background:#efefec}
+.topbar{background:rgba(32,32,30,.97);color:#fff;border-bottom:4px solid #0f4a43}
+.eyebrow{color:#d8d8d3}
+.topbar h1{color:#fff}
+.brand-block{min-width:0}
+.brand-word{display:inline-block;background:#0f4a43;color:#fff;font-weight:950;letter-spacing:.12em;padding:5px 8px;border-radius:3px;font-size:13px}
+.icon-btn{background:#343431;color:#fff;box-shadow:none;border:1px solid #4a4a46}
+.bottom-nav{background:#20201ef5;border-top:3px solid #0f4a43}
+.nav-btn{color:#bbbcb6}
+.nav-btn.active{color:#b8d0ca}
+.primary-btn,.wide-btn,.filter-btn.active,.settings-actions .save{background:var(--charcoal);color:#fff}
+.stat-card,.kpi-card,.action-card,.group-card,.call-category,.history-card,.form-card,.settings-card,.report-card{border:1px solid #e4e4df}
+.period-banner{background:#20201e;border-top:4px solid var(--brand)}
+.badge.green{background:#e4efe7;color:#385742}
+.badge.amber{background:#edf3f1;color:#3e5e57}
+.badge.red{background:#f7e4e2;color:#843b35}
+.badge.blue{background:#e8eaec;color:#4a555f}
+.manager-only{display:none}
+body.manager-session .manager-only{display:block!important}
+body.manager-session .bottom-nav{grid-template-columns:repeat(5,1fr)}
+body:not(.manager-session) .bottom-nav{grid-template-columns:repeat(4,1fr)}
+.nav-btn small{font-size:10px}
+.user-chip{display:inline-flex;align-items:center;gap:7px;background:#343431;color:#fff;border:1px solid #494944;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800}
+.user-chip .manager-star{color:#b8d0ca}
+.audit-line{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.audit-line b{color:var(--ink)}
+.user-list{display:grid;gap:10px;margin-top:12px}
+.user-card{background:#fff;border:1px solid #e2e2dd;border-radius:17px;padding:13px 14px}
+.user-card .role{font-size:11px;font-weight:850;color:#6d6d68}
+.manager-summary{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.manager-user-card{background:#fff;border-radius:18px;padding:14px;border:1px solid #e2e2dd;box-shadow:var(--shadow)}
+.manager-user-card h3{margin:0 0 8px;font-size:17px}
+.manager-user-card .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.manager-user-card .mini{background:#f5f5f2;border-radius:11px;padding:8px}
+.manager-user-card .mini b{display:block;font-size:17px}
+.manager-user-card .mini small{font-size:10px;color:var(--muted)}
+.pin-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.64);display:flex;align-items:flex-end;justify-content:center;padding:0}
+.pin-modal.hidden{display:none}
+.pin-sheet{width:min(520px,100%);background:#f4f4f1;border-radius:26px 26px 0 0;padding:20px 18px max(20px,env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+.pin-brand{display:inline-block;background:#0f4a43;color:#fff;font-weight:950;letter-spacing:.12em;padding:5px 8px;border-radius:3px;font-size:12px;margin-bottom:12px}
+.pin-sheet h2{margin:0 0 3px;font-size:24px}
+.pin-user-row{margin-top:14px}
+.pin-user-row select{width:100%;padding:13px;border-radius:14px;border:1px solid #d5d5cf;background:#fff;font-weight:800}
+.pin-dots{display:flex;justify-content:center;gap:16px;margin:22px 0 14px}
+.pin-dots span{width:16px;height:16px;border:2px solid #777;border-radius:50%;background:transparent}
+.pin-dots span.filled{background:#20201e;border-color:#20201e}
+.pin-error{min-height:18px;text-align:center;color:var(--red);font-size:12px;font-weight:800}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:8px}
+.pin-pad button{height:58px;border:0;border-radius:16px;background:#fff;font-size:22px;font-weight:850;color:#20201e;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.pin-pad button:active{transform:scale(.98);background:#ecece7}
+.pin-cancel{width:100%;margin-top:10px;border:0;background:transparent;padding:12px;color:#6d6d68;font-weight:800}
+.user-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.permission-toggle{display:flex;align-items:center;justify-content:space-between;background:#f5f5f2;border-radius:14px;padding:12px;margin-top:10px}
+.permission-toggle input{width:22px;height:22px}
+.call-owner-note{font-size:11px;color:var(--muted);margin-top:4px}
+@media (max-width:420px){
+  .pin-sheet{padding-left:14px;padding-right:14px}
+  .pin-pad button{height:56px}
+  .manager-summary{grid-template-columns:1fr}
+  body.manager-session .nav-btn small{font-size:9px}
+}
+
+:root{
+  --deep-green:#0f4a43;
+  --mid-green:#3e6f66;
+  --pale-green:#e9f0ee;
+  --soft-grey:#f2f3f1;
+}
+.topbar{background:#1f2523}
+.brand-word{background:var(--deep-green);color:#fff;letter-spacing:.10em}
+.bottom-nav{background:#1f2523f5;border-top-color:var(--deep-green)}
+.nav-btn.active{color:#b7d0ca}
+.period-banner{background:#1f2523;border-top:4px solid var(--deep-green)}
+.primary-btn,.wide-btn,.filter-btn.active,.settings-actions .save{background:var(--deep-green)}
+.badge.amber,.badge.today{background:#edf3f1;color:#3e5e57}
+.action-lane.follow{background:#eef4f2;border-bottom-color:#6d8e86}
+.action-lane.calls{background:#e7f0ed;border-bottom-color:#3e6f66}
+.pin-brand{background:var(--deep-green);color:#fff}
+.manager-star{color:#b7d0ca}
+.priority-list{display:grid;gap:8px;margin-top:12px}
+.priority-item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;background:#fff;border:1px solid #dde4e1;border-radius:16px;padding:12px}
+.priority-rank{width:32px;height:32px;border-radius:10px;background:#e8efed;display:flex;align-items:center;justify-content:center;font-weight:900;color:#2f5c54}
+.priority-text b{display:block;font-size:14px}
+.priority-text small{display:block;color:var(--muted);margin-top:2px}
+.priority-controls{display:flex;gap:5px}
+.priority-controls button{width:34px;height:34px;border:0;border-radius:10px;background:#edf1ef;color:#2d4741;font-weight:900}
+.analytics-bars{display:grid;gap:8px}
+.analytics-row{display:grid;grid-template-columns:62px 1fr 46px;gap:8px;align-items:center}
+.analytics-row .bar-track{height:12px;background:#e5e8e6;border-radius:999px;overflow:hidden}
+.analytics-row .bar-fill{height:100%;background:#3e6f66;border-radius:999px}
+.analytics-row .bar-fill.success{background:#0f4a43}
+.duration-quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.duration-quick button{border:1px solid #dce4e1;background:#fff;border-radius:999px;padding:8px 10px;font-weight:800;color:#365b54}
+.duration-quick button.active{background:#0f4a43;color:#fff;border-color:#0f4a43}
+
+/* =========================================================
+   V9 — HANDSOME / Howdens-inspired trade theme
+   Palette derived from Howdens published brand guidance:
+   red #D22630, black #000000, grey #646363, white #FFFFFF,
+   cream #F5F0E3, dark blue-grey #28343C.
+   No Howdens logo or artwork is used.
+   ========================================================= */
+
+:root{
+  --bg:#F5F0E3;
+  --panel:#FFFFFF;
+  --ink:#000000;
+  --muted:#646363;
+  --blue:#28343C;
+  --teal:#646363;
+  --green:#646363;
+  --amber:#646363;
+  --orange:#D22630;
+  --red:#D22630;
+  --line:#D7D4CC;
+  --shadow:0 2px 8px rgba(0,0,0,.10);
+  --brand:#D22630;
+  --charcoal:#000000;
+  --deep-green:#000000;
+  --mid-green:#646363;
+  --pale-green:#F1F1EF;
+  --soft-grey:#F1F1EF;
+}
+
+body{
+  background:#F5F0E3;
+  color:#000;
+}
+
+.app-shell{
+  background:#F5F0E3;
+}
+
+/* Header / wordmark */
+.topbar{
+  background:#FFFFFF;
+  color:#000;
+  border-top:7px solid #D22630;
+  border-bottom:1px solid #D7D4CC;
+  box-shadow:0 2px 5px rgba(0,0,0,.06);
+  backdrop-filter:none;
+}
+.brand-word{
+  background:transparent;
+  color:#000;
+  padding:0;
+  border-radius:0;
+  font-size:20px;
+  line-height:1;
+  font-weight:950;
+  letter-spacing:.035em;
+  position:relative;
+}
+.brand-word::after{
+  content:"";
+  display:block;
+  width:38px;
+  height:4px;
+  background:#D22630;
+  margin-top:5px;
+}
+.eyebrow{
+  color:#646363;
+  font-weight:700;
+  letter-spacing:.08em;
+  margin-top:6px;
+}
+.topbar h1{
+  color:#000;
+}
+.icon-btn{
+  background:#F1F1EF;
+  border:1px solid #D0CEC7;
+  color:#000;
+  box-shadow:none;
+  border-radius:4px;
+}
+
+/* Main navigation */
+.bottom-nav{
+  background:#FFFFFF;
+  border-top:2px solid #000;
+  box-shadow:0 -2px 8px rgba(0,0,0,.08);
+  backdrop-filter:none;
+}
+.nav-btn{
+  color:#646363;
+}
+.nav-btn.active{
+  color:#D22630;
+  font-weight:900;
+}
+.nav-btn.active span{
+  color:#D22630;
+}
+
+/* Period header */
+.period-banner{
+  background:#28343C;
+  color:#FFF;
+  border:0;
+  border-left:7px solid #D22630;
+  border-radius:4px;
+  box-shadow:none;
+}
+.period-banner .period-code{
+  font-weight:950;
+}
+.period-banner .period-dates{
+  color:#E5E5E3;
+  opacity:1;
+}
+
+/* Generic cards: flatter, squarer and more trade / corporate */
+.stat-card,.action-card,.kpi-card,.lead-row,.period-row,.category-row,
+.group-card,.report-card,.history-card,.customer-card,.form-card,
+.settings-card,.snapshot-card,.call-category,.manager-user-card,
+.metric-box,.user-card{
+  border-radius:6px;
+  box-shadow:0 1px 4px rgba(0,0,0,.09);
+  border:1px solid #D7D4CC;
+  background:#FFF;
+}
+
+.dashboard-title,.stat-section-title{
+  color:#000;
+  font-weight:900;
+}
+
+/* Action cards */
+.action-lane{
+  border-radius:6px;
+  box-shadow:none;
+}
+.action-lane.calls{
+  background:#FFF;
+  border:1px solid #D7D4CC;
+  border-left:6px solid #D22630;
+}
+.action-lane.follow{
+  background:#F1F1EF;
+  border:1px solid #D7D4CC;
+  border-left:6px solid #646363;
+}
+.action-lane .lane-icon{
+  color:#D22630;
+}
+
+/* KPI accents */
+.kpi-card.good,.kpi-card.blue,.kpi-card.warn{
+  border-left:5px solid #646363;
+}
+.kpi-card.alert{
+  border-left:5px solid #D22630;
+}
+.kpi-card .kpi-value{
+  color:#000;
+}
+
+/* Priority / status cards */
+.stat-card{
+  border-top:0;
+  border-left:5px solid #646363;
+}
+.stat-card.urgent{
+  border-left-color:#D22630;
+}
+.stat-card.warning{
+  border-left-color:#646363;
+}
+.stat-card.positive{
+  border-left-color:#28343C;
+}
+.stat-card.neutral{
+  border-left-color:#9D9B97;
+}
+
+/* Buttons */
+.primary-btn,.wide-btn,.settings-actions .save{
+  background:#000;
+  color:#FFF;
+  border-radius:4px;
+}
+.primary-btn:active,.wide-btn:active,.settings-actions .save:active{
+  background:#D22630;
+}
+.filter-btn{
+  border-radius:3px;
+  background:#FFF;
+  border:1px solid #AFAEAA;
+  color:#000;
+}
+.filter-btn.active{
+  background:#D22630;
+  color:#FFF;
+  border-color:#D22630;
+}
+.quick-actions button{
+  border-radius:4px;
+}
+.quick-actions .good{
+  background:#28343C;
+  color:#FFF;
+}
+.quick-actions .warn{
+  background:#F1F1EF;
+  color:#000;
+  border:1px solid #AFAEAA;
+}
+.quick-actions .bad{
+  background:#D22630;
+  color:#FFF;
+}
+
+/* Badges */
+.badge{
+  border-radius:3px;
+  background:#F1F1EF;
+  color:#000;
+}
+.badge.red,.badge.overdue{
+  background:#D22630;
+  color:#FFF;
+}
+.badge.amber,.badge.today{
+  background:#646363;
+  color:#FFF;
+}
+.badge.green{
+  background:#28343C;
+  color:#FFF;
+}
+.badge.blue,.badge.open{
+  background:#E6E7E7;
+  color:#000;
+}
+
+/* Forms */
+.field label,.setting-row label{
+  color:#000;
+}
+.field input,.field textarea,.field select,
+.setting-row textarea,.setting-row input,
+.pin-user-row select{
+  border-radius:3px;
+  border:1px solid #AFAEAA;
+  background:#FFF;
+}
+.field input:focus,.field textarea:focus,.field select:focus,
+.setting-row textarea:focus,.setting-row input:focus{
+  outline:2px solid #D22630;
+  outline-offset:1px;
+}
+
+/* Customer details */
+.phone{
+  background:#28343C;
+  color:#FFF;
+  border-radius:4px;
+}
+.fact{
+  background:#F1F1EF;
+  border-radius:4px;
+}
+.offer,.message-card{
+  background:#F5F0E3;
+  border:1px solid #D7D4CC;
+  border-left:5px solid #D22630;
+  border-radius:4px;
+}
+.progress{
+  background:#D9D9D6;
+}
+.progress > div{
+  background:#D22630;
+}
+
+/* Tables / period rows */
+.period-row.current{
+  border-left:6px solid #D22630;
+}
+.required-chip{
+  background:#F1F1EF;
+  color:#000;
+  border-radius:3px;
+}
+.lead-period{
+  color:#D22630;
+}
+
+/* Priority editor */
+.priority-item{
+  border-radius:4px;
+  border:1px solid #D7D4CC;
+}
+.priority-rank{
+  background:#D22630;
+  color:#FFF;
+  border-radius:3px;
+}
+.priority-controls button{
+  background:#28343C;
+  color:#FFF;
+  border-radius:3px;
+}
+
+/* Charts */
+.analytics-row .bar-track{
+  background:#E2E2DF;
+}
+.analytics-row .bar-fill{
+  background:#646363;
+}
+.analytics-row .bar-fill.success{
+  background:#D22630;
+}
+
+/* PIN */
+.pin-sheet{
+  background:#F5F0E3;
+  border-radius:10px 10px 0 0;
+}
+.pin-brand{
+  background:transparent;
+  color:#000;
+  padding:0;
+  font-size:18px;
+  letter-spacing:.035em;
+}
+.pin-brand::after{
+  content:"";
+  display:block;
+  width:34px;
+  height:4px;
+  background:#D22630;
+  margin-top:5px;
+}
+.pin-dots span.filled{
+  background:#D22630;
+  border-color:#D22630;
+}
+.pin-pad button{
+  border-radius:4px;
+  border:1px solid #D7D4CC;
+  box-shadow:none;
+}
+.pin-pad button:active{
+  background:#D22630;
+  color:#FFF;
+}
+
+/* User / manager */
+.user-chip{
+  background:#FFF;
+  color:#000;
+  border:1px solid #C9C7C0;
+  border-radius:3px;
+}
+.manager-star{
+  color:#D22630;
+}
+
+/* Call duration */
+.duration-quick button{
+  border-radius:3px;
+  color:#000;
+  border:1px solid #AFAEAA;
+}
+.duration-quick button.active{
+  background:#D22630;
+  color:#FFF;
+  border-color:#D22630;
+}
+
+/* Success and import states */
+.success{
+  background:#F1F1EF;
+  color:#000;
+  border-left:5px solid #28343C;
+  border-radius:4px;
+}
+.import-status{
+  background:#F1F1EF;
+  color:#000;
+  border-left:5px solid #28343C;
+  border-radius:4px;
+}
+.import-status.error{
+  background:#FFF;
+  color:#A21F28;
+  border-left-color:#D22630;
+}
+.file-drop{
+  background:#FFF;
+  border:2px dashed #646363;
+  border-radius:4px;
+}
+
+/* Remove remaining overly rounded visual language */
+.pill,.required-chip,.user-chip,.badge{
+  border-radius:3px;
+}
+.bar-wrap,.bar,.bar-track,.bar-fill,.progress,.progress>div{
+  border-radius:1px;
+}
+
+@media (max-width:520px){
+  .topbar{padding-top:14px}
+  .brand-word{font-size:18px}
+  .period-banner,.customer-card,.form-card,.group-card,.report-card,
+  .history-card,.kpi-card,.stat-card,.action-card,.call-category{
+    border-radius:5px;
+  }
+}
+
+/* V10 workflow / targets / manager intelligence */
+.stage-badge{display:inline-block;padding:5px 8px;border-radius:3px;font-size:11px;font-weight:900;background:#ECECEC;color:#000}
+.stage-open{background:#E7E7E7}
+.stage-contacted{background:#D9DEE0}
+.stage-quoted{background:#D7E0E5}
+.stage-awaiting{background:#E7E1D8}
+.stage-won{background:#28343C;color:#fff}
+.stage-lost{background:#D22630;color:#fff}
+.stage-hold{background:#646363;color:#fff}
+.target-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.target-card{background:#fff;border:1px solid #D7D4CC;border-radius:5px;padding:14px}
+.target-card b{display:block;font-size:22px}
+.target-card small{color:var(--muted)}
+.target-progress{height:9px;background:#E2E2DF;margin-top:8px;overflow:hidden}
+.target-progress span{display:block;height:100%;background:#D22630}
+.intervention-card{background:#fff;border:1px solid #D7D4CC;border-left:5px solid #D22630;border-radius:5px;padding:13px;margin-bottom:9px}
+.intervention-card b{display:block}
+.intervention-card small{color:var(--muted)}
+.score-pill{display:inline-block;min-width:46px;text-align:center;padding:5px 7px;background:#28343C;color:#fff;font-weight:900;border-radius:3px}
+.age-chip{display:inline-block;padding:4px 7px;border-radius:3px;background:#F1F1EF;font-size:11px;font-weight:800}
+.age-chip.old{background:#D22630;color:#fff}
+.metric-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #D7D4CC}
+.metric-table th,.metric-table td{padding:10px;border-bottom:1px solid #E1DFD8;text-align:left;font-size:12px}
+.metric-table th{background:#F1F1EF;font-weight:900}
+.metric-table tr:last-child td{border-bottom:0}
+.segment-tabs{display:flex;gap:7px;overflow:auto;margin-bottom:10px}
+.segment-tabs button{border:1px solid #AFAEAA;background:#fff;padding:8px 10px;border-radius:3px;white-space:nowrap;font-weight:800}
+.segment-tabs button.active{background:#000;color:#fff}
+.reason-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.reason-grid button{border:1px solid #CFCFC8;background:#fff;border-radius:3px;padding:10px;text-align:left;font-size:12px;font-weight:800}
+.reason-grid button.active{background:#28343C;color:#fff}
+.best-time{display:inline-block;padding:5px 8px;background:#F1F1EF;border-left:4px solid #D22630;font-size:12px;font-weight:800}
+@media (max-width:420px){
+  .target-grid{grid-template-columns:1fr 1fr}
+  .metric-table th,.metric-table td{padding:8px;font-size:11px}
+}
+
+.quick-note-grid{display:grid;grid-template-columns:1fr;gap:7px;margin-top:6px}
+.quick-note-btn{width:100%;text-align:left;border:1px solid #CFCFC8;background:#FFF;color:#000;padding:11px 12px;border-radius:4px;font-size:12px;font-weight:800;line-height:1.3}
+.quick-note-btn.active{background:#28343C;color:#FFF;border-color:#28343C}
+.quick-note-btn:active{border-color:#D22630}
+@media(min-width:520px){.quick-note-grid{grid-template-columns:1fr 1fr}}
+
+.nurture-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.nurture-card{background:#fff;border:1px solid #d7d4cc;border-left:5px solid #28343c;border-radius:5px;padding:14px;text-align:left;color:#000}
+.nurture-card.priority{border-left-color:#d22630}.nurture-card.danger{border-left-color:#d22630}
+.nurture-card b{font-size:26px;display:block}.nurture-card span{display:block;font-weight:900;margin-top:3px}.nurture-card small{display:block;color:#646363;margin-top:3px}
+.why-call{background:#28343c;color:#fff;border-left:6px solid #d22630;padding:12px;margin:-1px -1px 14px;border-radius:4px 4px 0 0}
+.why-call small,.why-call b,.why-call span{display:block}.why-call small{font-size:10px;letter-spacing:.08em;opacity:.8}.why-call b{font-size:16px;margin-top:3px}.why-call span{font-size:12px;margin-top:4px}
+.workflow-detail{margin-top:10px;padding:11px;background:#f1f1ef;border-left:4px solid #28343c}.workflow-detail.danger{border-left-color:#d22630}.workflow-detail b,.workflow-detail span{display:block}.workflow-detail span{font-size:12px;color:#646363;margin-top:4px}
+.streak-strip{display:flex;justify-content:space-between;margin-top:10px;padding:10px 12px;background:#fff;border:1px solid #d7d4cc}
+@media(max-width:420px){.nurture-grid{grid-template-columns:1fr 1fr}}
+
+</style>
 </head>
 <body>
   <div class="app-shell">
@@ -86,6 +810,1910 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js"></script>
+  <script>
+
+const FIELD_NAMES = [
+  'customer','name','gdprEmail','gdprSms','gdprTel','gdprPost','openYear','recency',
+  'transactionsMAT','transactionsDelta','salesMAT','salesDelta','avgTransactionMAT','avgTransactionDelta',
+  'marginMAT','marginDelta','kitchenNumberMAT','kitchenNumberDelta','kitchenAvgValueMAT','kitchenAvgValueDelta',
+  'appliancesMAT','appliancesDelta','worktopsMAT','worktopsDelta','sinksMAT','sinksDelta','tapsMAT','tapsDelta',
+  'doorsMAT','doorsDelta','hardwareMAT','hardwareDelta','flooringMAT','flooringDelta','joineryMAT','joineryDelta',
+  'loyalty','unused38'
+];
+
+const FIELD_LABELS = [
+  'Customer','Name','GDPR Email','GDPR SMS','GDPR Telephone','GDPR Post','Open Year','Recency (Period)',
+  'Transactions MAT','Transactions Δ','Sales £ MAT','Sales Δ','Avg Transaction £ MAT','Avg Transaction Δ',
+  'Margin % MAT','Margin Δ','Kitchen Number MAT','Kitchen Number Δ','Kitchen Avg Value £ MAT','Kitchen Avg Value Δ',
+  'Appliances MAT','Appliances Δ','Worktops MAT','Worktops Δ','Sinks MAT','Sinks Δ','Taps MAT','Taps Δ',
+  'Doors MAT','Doors Δ','Hardware MAT','Hardware Δ','Flooring m² MAT','Flooring Δ','Joinery MAT','Joinery Δ',
+  'Loyalty %','Column 38'
+];
+
+const demoCustomers = {
+  critical: [
+    {id:'A10421',name:'J Smith Builders',phone:'07700 900123',months:12,last:'11 Oct 2025',sales:31800,tx:27,pattern:'Usually every 2–3 weeks',offer:'Spend £1 and receive £10 credit',lastnote:'No previous BD contact recorded'},
+    {id:'A11804',name:'Oak & Stone Projects',phone:'07700 900456',months:13,last:'21 Sep 2025',sales:18750,tx:16,pattern:'Regular monthly buyer',offer:'Spend £1 and receive £10 credit',lastnote:'Voicemail left 18 Sep'},
+    {id:'A12244',name:'Harris Renovations',phone:'07700 900789',months:14,last:'04 Aug 2025',sales:44200,tx:38,pattern:'Previously high-frequency trader',offer:'Urgent reactivation call',lastnote:'Spoke March: projects delayed'}
+  ],
+  atrisk: [
+    {id:'A10992',name:'T Brown Carpentry',phone:'07700 901111',months:3,last:'07 Jul 2026',sales:42100,tx:44,pattern:'Normally trades monthly',offer:'10% off next purchase',lastnote:'No recent contact'},
+    {id:'A10673',name:'Mason Property Works',phone:'07700 901222',months:5,last:'08 May 2026',sales:27600,tx:22,pattern:'Every 4–6 weeks',offer:'Call and review next project',lastnote:'Quoted appliances in April'}
+  ],
+  growth: [
+    {id:'A12661',name:'Bluebird Interiors',phone:'07700 902111',months:1,last:'19 Sep 2026',sales:55900,tx:31,pattern:'Growing rapidly',offer:'Cross-sell worktops & appliances',lastnote:'Kitchen buyer, low appliance penetration'}
+  ],
+  new: [
+    {id:'A13008',name:'Ridgeway Construction',phone:'07700 903111',months:0,last:'Never',sales:0,tx:0,pattern:'Account opened 3 weeks ago',offer:'Welcome call – secure first trade',lastnote:'Never traded'}
+  ]
+};
+
+const storage = {
+  get(key, fallback){ try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+  set(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+};
+
+
+let users = storage.get('bdm_users', []);
+let activeUserId = storage.get('bdm_active_user', null);
+
+if(!users.length){
+  users = [
+    {id:'U1',name:'Manager',pinHash:'03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4',manager:true,active:true}
+  ];
+  storage.set('bdm_users', users);
+}
+
+function activeUser(){
+  return users.find(u=>u.id===activeUserId && u.active!==false) || null;
+}
+function syncManagerSession(){
+  const u=activeUser();
+  document.body.classList.toggle('manager-session', !!u?.manager);
+}
+async function sha256(text){
+  const data=new TextEncoder().encode(text);
+  const digest=await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function auditStamp(user, action){
+  const now=new Date();
+  return {
+    userId:user.id,
+    userName:user.name,
+    action,
+    iso:now.toISOString(),
+    display:now.toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'})
+  };
+}
+
+let pendingPinAction=null;
+let pinBuffer='';
+
+function refreshPinUsers(selectedId=null){
+  const sel=document.getElementById('pinUserSelect');
+  if(!sel) return;
+  sel.innerHTML=users.filter(u=>u.active!==false).map(u=>`<option value="${u.id}" ${u.id===(selectedId||activeUserId)?'selected':''}>${u.name}${u.manager?' · Manager':''}</option>`).join('');
+}
+function updatePinDots(){
+  document.querySelectorAll('#pinDots span').forEach((d,i)=>d.classList.toggle('filled', i<pinBuffer.length));
+}
+function closePinModal(){
+  pinBuffer='';
+  updatePinDots();
+  document.getElementById('pinError').textContent='';
+  document.getElementById('pinModal').classList.add('hidden');
+  document.getElementById('pinModal').setAttribute('aria-hidden','true');
+  pendingPinAction=null;
+}
+function requestPin({title='Confirm save',subtitle='Enter your 4 digit PIN',managerOnly=false,onSuccess}){
+  const available=users.filter(u=>u.active!==false && (!managerOnly || u.manager));
+  if(!available.length){
+    alert(managerOnly ? 'No active manager user is set up.' : 'No active users are set up.');
+    return;
+  }
+  pendingPinAction={managerOnly,onSuccess};
+  pinBuffer='';
+  document.getElementById('pinTitle').textContent=title;
+  document.getElementById('pinSubtitle').textContent=subtitle;
+  document.getElementById('pinError').textContent='';
+  refreshPinUsers(available.some(u=>u.id===activeUserId)?activeUserId:available[0].id);
+  if(managerOnly){
+    document.getElementById('pinUserSelect').innerHTML=available.map(u=>`<option value="${u.id}">${u.name} · Manager</option>`).join('');
+  }
+  updatePinDots();
+  document.getElementById('pinModal').classList.remove('hidden');
+  document.getElementById('pinModal').setAttribute('aria-hidden','false');
+}
+async function submitPinIfReady(){
+  if(pinBuffer.length!==4 || !pendingPinAction) return;
+  const user=users.find(u=>u.id===document.getElementById('pinUserSelect').value && u.active!==false);
+  if(!user){
+    document.getElementById('pinError').textContent='Choose an active user.';
+    pinBuffer=''; updatePinDots(); return;
+  }
+  const hash=await sha256(pinBuffer);
+  if(hash!==user.pinHash){
+    document.getElementById('pinError').textContent='Incorrect PIN';
+    pinBuffer=''; updatePinDots(); return;
+  }
+  if(pendingPinAction.managerOnly && !user.manager){
+    document.getElementById('pinError').textContent='Manager permission required';
+    pinBuffer=''; updatePinDots(); return;
+  }
+  const action=pendingPinAction.onSuccess;
+  activeUserId=user.id;
+  storage.set('bdm_active_user', activeUserId);
+  syncManagerSession();
+  closePinModal();
+  if(action) action(user);
+}
+
+let snapshots = storage.get('bdm_snapshots', []);
+let activity = storage.get('bdm_activity', [
+  {iso:'2026-10-03T14:26:00',time:'03 Oct 2026 · 14:26',customer:'J Smith Builders',type:'Spoke to customer',detail:'Offered 10% off next purchase. Two kitchens coming up.'},
+  {iso:'2026-10-03T13:42:00',time:'03 Oct 2026 · 13:42',customer:'Mason Property Works',type:'Voicemail left',detail:'Asked customer to call back regarding account review.'},
+  {iso:'2026-10-02T16:18:00',time:'02 Oct 2026 · 16:18',customer:'Bluebird Interiors',type:'Quote given',detail:'Quote 458271 · £8,450 · 37.0% margin'}
+]);
+
+
+let leads = storage.get('bdm_leads', []);
+leads = leads.map(l=>({
+  ...l,
+  ownerId:l.ownerId || users[0]?.id || null,
+  ownerName:l.ownerName || users[0]?.name || 'Unassigned'
+}));
+if(!leads.length){
+  leads = [
+    {id:'LDEMO1',createdAt:'2026-10-02T16:18:00',customer:'Bluebird Interiors',customerId:'A12661',category:'Kitchen',quoteNo:'458271',details:'Kitchen + appliances',value:8450,margin:3126,requiredByDate:'2026-10-12',followUpDate:'2026-10-05',status:'open',notes:''}
+  ];
+  storage.set('bdm_leads', leads);
+}
+
+function isoToday(){
+  const d=new Date();
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function currentPeriodKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function activityDateKey(a){
+  if(a.iso) return String(a.iso).slice(0,7);
+  return null;
+}
+
+const SALES_PERIOD_START = new Date(2025,11,29);
+function localDateOnly(value){ if(value instanceof Date)return new Date(value.getFullYear(),value.getMonth(),value.getDate()); if(!value)return null; const parts=String(value).slice(0,10).split('-').map(Number); if(parts.length===3&&parts.every(Number.isFinite))return new Date(parts[0],parts[1]-1,parts[2]); const d=new Date(value); return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function daysBetween(a,b){ return Math.floor((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000); }
+function periodInfo(value=new Date()){ const d=localDateOnly(value)||localDateOnly(new Date()); const diff=daysBetween(SALES_PERIOD_START,d); if(diff<0)return {period:0,week:0,day:0,label:'Before P1',start:null,end:null}; const pi=Math.floor(diff/28),within=diff%28,week=Math.floor(within/7)+1,day=within%7+1; const start=new Date(SALES_PERIOD_START); start.setDate(start.getDate()+pi*28); const end=new Date(start); end.setDate(end.getDate()+27); return {period:pi+1,week,day,label:`D${day} · W${week} · P${pi+1}`,start,end}; }
+function fmtShortDate(d){ return d?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'; }
+function periodLabelForDate(v){ const p=periodInfo(v); return p.period?`P${p.period} · W${p.week} · D${p.day}`:'Before P1'; }
+function periodRange(periodNumber){ const start=new Date(SALES_PERIOD_START); start.setDate(start.getDate()+(periodNumber-1)*28); const end=new Date(start); end.setDate(end.getDate()+27); return {start,end}; }
+function leadRequiredPeriod(l){ return l.requiredByDate?periodInfo(l.requiredByDate).period:null; }
+
+function accountLeadStats(customerId){
+  const all=leads.filter(l=>l.customerId===customerId);
+  const won=all.filter(l=>l.status==='won');
+  const lost=all.filter(l=>l.status==='lost');
+  const open=all.filter(l=>l.status!=='won' && l.status!=='lost');
+  const decided=won.length+lost.length;
+  const successRate=decided ? (won.length/decided*100) : 0;
+  return {
+    total:all.length,
+    won:won.length,
+    lost:lost.length,
+    open:open.length,
+    successRate,
+    totalValue:all.reduce((s,l)=>s+n(l.value),0),
+    wonValue:won.reduce((s,l)=>s+n(l.value),0)
+  };
+}
+
+function leadStatusBucket(l){ const t=isoToday(); if(l.status==='won'||l.status==='lost')return l.status; if(l.followUpDate&&l.followUpDate<t)return 'overdue'; if(l.followUpDate===t)return 'today'; return 'open'; }
+
+function dashboardMetrics(){
+  const p=periodInfo(new Date());
+  const startISO=`${p.start.getFullYear()}-${String(p.start.getMonth()+1).padStart(2,'0')}-${String(p.start.getDate()).padStart(2,'0')}`;
+  const endISO=`${p.end.getFullYear()}-${String(p.end.getMonth()+1).padStart(2,'0')}-${String(p.end.getDate()).padStart(2,'0')}`;
+  const periodActs=activity.filter(a=>{
+    const iso=(a.iso||'').slice(0,10);
+    return iso && iso>=startISO && iso<=endISO;
+  });
+  const spoken=periodActs.filter(a=>a.type==='Spoke to customer');
+  const contactedIds=new Set(periodActs.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).map(a=>a.customerId || a.customer));
+  const latest=latestSnapshot();
+  const groups=liveGroups();
+  const baseCustomerCount = latest?.customers?.length || Object.values(groups).flat().length || 0;
+  const contactPct = baseCustomerCount ? Math.round(contactedIds.size/baseCustomerCount*100) : 0;
+
+  const salesPeriodLeads=leads.filter(l=>leadRequiredPeriod(l)===p.period && l.status!=='lost');
+  const leadValue=salesPeriodLeads.reduce((s,l)=>s+n(l.value),0);
+  const leadMargin=salesPeriodLeads.reduce((s,l)=>s+n(l.margin),0);
+  const marginPct=leadValue ? leadMargin/leadValue*100 : 0;
+
+  const today=isoToday();
+  const openLeads=leads.filter(l=>l.status!=='won' && l.status!=='lost');
+  const followToday=openLeads.filter(l=>l.followUpDate===today);
+  const overdue=openLeads.filter(l=>l.followUpDate && l.followUpDate<today);
+
+  const callsMade=periodActs.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).length;
+  const voicemail=periodActs.filter(a=>a.type==='Voicemail left').length;
+  const conversations=periodActs.filter(a=>a.type==='Spoke to customer' || a.type==='Quote given').length;
+  const successRate=callsMade ? conversations/callsMade*100 : 0;
+  const leadStrike=conversations ? salesPeriodLeads.length/conversations*100 : 0;
+  const converted=salesPeriodLeads.filter(l=>l.status==='won');
+  const conversionRate=salesPeriodLeads.length ? converted.length/salesPeriodLeads.length*100 : 0;
+
+  const now=new Date();
+  const weekStart=new Date(p.start);
+  weekStart.setDate(weekStart.getDate()+(p.week-1)*7);
+  const weekEnd=new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
+  const weekStartISO=`${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`;
+  const weekEndISO=`${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`;
+  const weekLeads=leads.filter(l=>{
+    const created=(l.createdAt||'').slice(0,10);
+    return created && created>=weekStartISO && created<=weekEndISO;
+  });
+  const weekLeadValue=weekLeads.reduce((s,l)=>s+n(l.value),0);
+  const weekLeadMargin=weekLeads.reduce((s,l)=>s+n(l.margin),0);
+
+  return {
+    period:p.period, week:p.week, day:p.day,
+    contactPct, contacted:contactedIds.size, customerCount:baseCustomerCount,
+    callsMade, voicemail, conversations, successRate,
+    leadStrike, conversionRate,
+    leadCount:salesPeriodLeads.length, leadValue, leadMargin, marginPct,
+    weekLeadCount:weekLeads.length, weekLeadValue, weekLeadMargin,
+    followToday:followToday.length, overdue:overdue.length
+  };
+}
+
+
+let periodSettings = storage.get('bdm_period_settings', {});
+
+
+const LEAD_STAGES = ['Open','Contacted','Quoted','Awaiting decision','Won','Lost','On hold'];
+const LOSS_REASONS = ['No answer','No work currently','Competitor','Price','Service','Credit','Moved area','Business closed','Not interested','Other'];
+let userTargets = storage.get('bdm_user_targets', {});
+let periodTargets = storage.get('bdm_period_targets', {});
+
+let standardContactMessages = storage.get('bdm_standard_contact_messages', {
+  spoke: [
+    'Advised the Rooster is out and has some great offers',
+    'Advised it’s P21 and a great time to buy a kitchen',
+    'Advised of upcoming Trade Day',
+    'Discussed current projects and upcoming work',
+    'Advised of current kitchen offers',
+    'Advised of current joinery offers',
+    'Customer asked for a follow-up call',
+    'Customer currently has no work',
+    'Customer buying elsewhere at present'
+  ],
+  voicemail: [
+    'Left voicemail advising the Rooster is out and has some great offers',
+    'Left voicemail advising it’s P21 and a great time to buy a kitchen',
+    'Left voicemail advising of upcoming Trade Day',
+    'Left voicemail regarding current kitchen offers',
+    'Left voicemail regarding current joinery offers',
+    'Left voicemail asking customer to call back'
+  ]
+});
+function contactMessages(type){ return standardContactMessages[type] || []; }
+
+let nurtureSettings = storage.get('bdm_nurture_settings', {
+  newOffers:[
+    'Welcome call and introduce the depot team',
+    'Rooster / latest offers',
+    'Kitchen opportunity and current promotion',
+    'Check progress, ask for next job and reinforce support'
+  ],
+  oldOffers:[
+    'P12 reactivation offer',
+    'P12 follow-up rescue offer',
+    'P13 retention offer',
+    'P14 final recovery offer',
+    'Final contact before P15 closure'
+  ],
+  oldSpacingDays:18,
+  thanksThreshold:5000,
+  top20:[],
+  top20Message:'Priority period call – advise latest offers and ask about upcoming work',
+  dailyTargets:{calls:20,leads:3,surveys:2,conversations:0},
+  enabledTargets:{calls:true,leads:true,surveys:true,conversations:false}
+});
+let nurtureProgress = storage.get('bdm_nurture_progress', {});
+let recentTransactions = storage.get('bdm_recent_transactions', [
+  {customerId:'A12661',date:'2026-10-01',value:6200,category:'Kitchen',margin:2294,detail:'Kitchen + appliances'}
+]);
+let targetHistory = storage.get('bdm_target_history', {});
+
+function periodActivityForCustomer(id){
+  const p=currentSalesPeriodNumber();
+  return activity.filter(a=>a.customerId===id && a.iso && periodInfo(a.iso).period===p);
+}
+function successfulConversationCount(id, scope='all'){
+  return activity.filter(a=>a.customerId===id && a.type==='Spoke to customer' && a.iso).length;
+}
+function customerFirstSeenDate(id){
+  const hit=snapshots.find(s=>(s.customers||[]).some(c=>String(c.customer||'').trim()===String(id)));
+  return hit?.date || null;
+}
+function daysOpenForCustomer(c){
+  const d=customerFirstSeenDate(c.customer) || (c.openDate||null);
+  if(d){ const dd=localDateOnly(d); if(dd) return Math.max(0,daysBetween(dd,localDateOnly(new Date()))); }
+  const yr=Number(c.openYear);
+  if(Number.isFinite(yr) && yr===new Date().getFullYear()) return 30;
+  return 999;
+}
+function nurtureRecord(id){
+  if(!nurtureProgress[id]) nurtureProgress[id]={newContacts:0,oldContacts:0,lastOldContact:null,thanksHandledThrough:null};
+  return nurtureProgress[id];
+}
+function recentSpend30(id){
+  const today=localDateOnly(new Date());
+  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)<=30)
+    .reduce((s,t)=>s+n(t.value),0);
+}
+function recentTxFor(id){
+  const today=localDateOnly(new Date());
+  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)<=30)
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+}
+function top20Set(){ return new Set((nurtureSettings.top20||[]).map(x=>String(x).trim()).filter(Boolean)); }
+function normalContactDue(id){
+  return !periodActivityForCustomer(id).some(a=>a.type==='Spoke to customer');
+}
+function workflowForCustomer(c){
+  const id=String(c.customer||'').trim();
+  const rec=n(c.recency), tx=n(c.transactionsMAT), daysOpen=daysOpenForCustomer(c), prog=nurtureRecord(id);
+  if(top20Set().has(id) && normalContactDue(id)) return {key:'top20',label:'TOP 20 CUSTOMER',reason:nurtureSettings.top20Message,rank:1};
+  if(daysOpen<60 && tx<3 && prog.newContacts<4) return {key:'newNurture',label:`NEW ACCOUNT · CONTACT ${prog.newContacts+1} OF 4`,reason:nurtureSettings.newOffers[prog.newContacts]||'New account nurture',rank:2};
+  if(rec>=12 && rec<15){
+    const step=Math.min(prog.oldContacts, nurtureSettings.oldOffers.length-1);
+    let due=true;
+    if(prog.lastOldContact){
+      const d=localDateOnly(prog.lastOldContact);
+      if(d) due=daysBetween(d,localDateOnly(new Date()))>=n(nurtureSettings.oldSpacingDays||18);
+    }
+    if(due) return {key:'oldNurture',label:`OLD ACCOUNT NURTURE · P${rec}`,reason:nurtureSettings.oldOffers[step]||'Reactivation offer',rank:3};
+  }
+  const spend=recentSpend30(id);
+  const handled=prog.thanksHandledThrough;
+  const latest=recentTxFor(id)[0]?.date || null;
+  if(spend>=n(nurtureSettings.thanksThreshold) && latest && (!handled || latest>handled))
+    return {key:'thanks',label:`GIVEN THANKS · ${money(spend)} / 30 DAYS`,reason:'Thank customer, check everything went well and ask about more business',rank:4};
+  return null;
+}
+function todaysUserMetrics(userId){
+  const today=isoToday();
+  const acts=activity.filter(a=>a.audit?.userId===userId && String(a.iso||'').slice(0,10)===today);
+  const leadIds=new Set(leads.filter(l=>l.audit?.userId===userId && String(l.createdAt||'').slice(0,10)===today).map(l=>l.id));
+  return {
+    calls:acts.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).length,
+    conversations:acts.filter(a=>a.type==='Spoke to customer').length,
+    leads:leadIds.size,
+    surveys:acts.filter(a=>a.surveyBooked).length
+  };
+}
+function targetStatus(userId){
+  const actual=todaysUserMetrics(userId);
+  const targets=nurtureSettings.dailyTargets||{};
+  const enabled=nurtureSettings.enabledTargets||{};
+  const keys=['calls','conversations','leads','surveys'].filter(k=>enabled[k] && n(targets[k])>0);
+  const achieved=keys.filter(k=>actual[k]>=n(targets[k]));
+  return {actual,targets,enabled,keys,achieved,complete:keys.length>0&&achieved.length===keys.length};
+}
+function workingDayKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function updateTargetHistory(user){
+  if(!user) return;
+  const s=targetStatus(user.id), key=workingDayKey(new Date());
+  if(!targetHistory[user.id]) targetHistory[user.id]={};
+  const was=targetHistory[user.id][key]?.complete;
+  targetHistory[user.id][key]={date:key,targets:{...s.targets},actual:{...s.actual},achieved:[...s.achieved],complete:s.complete};
+  storage.set('bdm_target_history',targetHistory);
+  if(s.complete && !was) setTimeout(()=>alert(`Target day complete for ${user.name}. Streak day recorded.`),50);
+}
+function userStreak(userId){
+  const hist=targetHistory[userId]||{};
+  let current=0,best=0,run=0;
+  const dates=Object.keys(hist).sort();
+  dates.forEach(k=>{ if(hist[k].complete){run++;best=Math.max(best,run);} else run=0; });
+  let d=localDateOnly(new Date());
+  while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
+  for(let i=0;i<120;i++){
+    const k=workingDayKey(d), item=hist[k];
+    if(item?.complete) current++;
+    else if(k!==isoToday()) break;
+    d.setDate(d.getDate()-1);
+    while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
+  }
+  return {current,best};
+}
+
+
+
+function currentPeriodTarget(){
+  const p=currentSalesPeriodNumber();
+  return periodTargets[p] || {sales:0,margin:0,leads:0,contactPct:0};
+}
+function userTarget(userId){
+  const p=currentSalesPeriodNumber();
+  return (userTargets[p] && userTargets[p][userId]) || {calls:0,conversations:0,leads:0,pipeline:0,margin:0};
+}
+function pct(actual,target){ return target>0 ? Math.min(100,actual/target*100) : 0; }
+function leadAgeDays(l){
+  if(!l.createdAt) return 0;
+  return Math.max(0,Math.floor((Date.now()-new Date(l.createdAt).getTime())/86400000));
+}
+function leadAgeBucket(l){
+  const d=leadAgeDays(l);
+  if(d<=7) return '0–7 days';
+  if(d<=14) return '8–14 days';
+  if(d<=28) return '15–28 days';
+  return '29+ days';
+}
+function normalizeStage(l){
+  if(l.stage) return l.stage;
+  if(l.status==='won') return 'Won';
+  if(l.status==='lost') return 'Lost';
+  return 'Open';
+}
+function leadIsClosed(l){ const s=normalizeStage(l); return s==='Won'||s==='Lost'; }
+function leadOpportunityScore(l){
+  let score=0;
+  score += Math.min(35, n(l.value)/1000);
+  score += Math.min(20, n(l.margin)/500);
+  const days=leadAgeDays(l);
+  if(days<=7) score+=15; else if(days<=14) score+=10; else if(days<=28) score+=5;
+  if(l.requiredByDate){
+    const rp=periodInfo(l.requiredByDate).period;
+    const cp=currentSalesPeriodNumber();
+    if(rp===cp) score+=15; else if(rp===cp+1) score+=10;
+  }
+  if(normalizeStage(l)==='Quoted') score+=10;
+  if(normalizeStage(l)==='Awaiting decision') score+=12;
+  return Math.max(0,Math.min(100,Math.round(score)));
+}
+function customerOpportunityScore(c, prev){
+  let score=0;
+  const sales=n(c.salesMAT), rec=n(c.recency), loyalty=n(c.loyalty), tx=n(c.transactionsMAT);
+  score += Math.min(30,sales/2000);
+  if(rec>=3 && rec<=6) score+=20;
+  if(rec>=7 && rec<=11) score+=15;
+  if(rec>=12 && rec<=14) score+=10;
+  if(loyalty>0 && loyalty<40) score+=10;
+  if(loyalty>=70) score+=5;
+  if(tx>=10) score+=10;
+  if(prev && n(prev.salesMAT)>sales) score+=15;
+  return Math.max(0,Math.min(100,Math.round(score)));
+}
+function bestTimeForCustomer(customerId){
+  const acts=activity.filter(a=>a.customerId===customerId && a.iso);
+  const byHour={};
+  acts.forEach(a=>{
+    const hr=new Date(a.iso).getHours();
+    if(!byHour[hr]) byHour[hr]={calls:0,success:0};
+    byHour[hr].calls++;
+    if(a.type==='Spoke to customer'||a.type==='Quote given') byHour[hr].success++;
+  });
+  const entries=Object.entries(byHour).filter(([,v])=>v.calls>0);
+  if(!entries.length) return null;
+  entries.sort((a,b)=>{
+    const ar=a[1].success/a[1].calls, br=b[1].success/b[1].calls;
+    if(br!==ar) return br-ar;
+    return b[1].calls-a[1].calls;
+  });
+  return `${String(entries[0][0]).padStart(2,'0')}:00–${String(Number(entries[0][0])+1).padStart(2,'0')}:00`;
+}
+
+let callPriorityConfig = storage.get('bdm_call_priorities', [
+  {key:'critical', label:'Approaching closure', desc:'12–14 periods since last trade'},
+  {key:'never', label:'Never traded', desc:'Account open but no sales or transactions'},
+  {key:'lapsed12', label:'Not traded in 12+ months', desc:'Previously traded, now lapsed'},
+  {key:'spenddrop', label:'Spend drastically reduced', desc:'Large negative movement vs previous upload'},
+  {key:'lowloyalty', label:'Low loyalty', desc:'Low loyalty % customers'},
+  {key:'kitchenheavy', label:'Mainly kitchens', desc:'Strong kitchen mix / kitchen-led customer'},
+  {key:'flooringheavy', label:'Mainly flooring', desc:'Strong flooring mix'},
+  {key:'joineryheavy', label:'Mainly joinery', desc:'Strong joinery mix'},
+  {key:'highloyalty', label:'Very loyal', desc:'High loyalty % customers'},
+  {key:'oneoff', label:'One-off customer', desc:'Only one transaction and then stopped'},
+  {key:'newnostart', label:'New account, no first trade', desc:'Newly opened account with no first sale'},
+  {key:'highvalueatrisk', label:'High value at risk', desc:'Historically valuable account now cooling'},
+  {key:'productgap', label:'Product gap opportunity', desc:'Good spend but obvious missing categories'}
+]);
+
+
+function currentSalesPeriodNumber(){
+  return periodInfo(new Date()).period;
+}
+function defaultPeriodSettings(periodNo){
+  return {
+    period: periodNo,
+    messages: {
+      critical: 'Urgent reactivation: stop the account reaching closure.',
+      atrisk: 'Re-engage now: remind them why they used us and give a reason to trade.',
+      new: 'Welcome call: understand their first project and secure first trade.',
+      growth: 'Develop the account: identify the next product/category opportunity.'
+    },
+    updatedAt: new Date().toISOString()
+  };
+}
+function getPeriodSettings(periodNo=currentSalesPeriodNumber()){
+  if(!periodSettings[periodNo]){
+    periodSettings[periodNo]=defaultPeriodSettings(periodNo);
+    storage.set('bdm_period_settings', periodSettings);
+  }
+  return periodSettings[periodNo];
+}
+function savePeriodSettings(periodNo, values){
+  periodSettings[periodNo]={
+    period:periodNo,
+    messages:values,
+    updatedAt:new Date().toISOString()
+  };
+  storage.set('bdm_period_settings', periodSettings);
+}
+
+let currentView = 'home';
+let queueKey = 'critical';
+let queueIndex = 0;
+let selectedOutcome = null;
+
+const app = document.getElementById('app');
+const title = document.getElementById('pageTitle');
+const homeTemplate = document.getElementById('homeTemplate');
+
+function money(v){ return '£' + Number(v || 0).toLocaleString('en-GB', {maximumFractionDigits:0}); }
+function n(v){ const x = Number(v); return Number.isFinite(x) ? x : 0; }
+function setNav(view){ document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view)); }
+function latestSnapshot(){ return snapshots.length ? snapshots[snapshots.length-1] : null; }
+
+function classifyCustomer(c, prevMap){
+  const id = String(c.customer ?? '').trim();
+  const prev = prevMap ? prevMap[id] : null;
+  const rec = n(c.recency);
+  const sales = n(c.salesMAT);
+  const tx = n(c.transactionsMAT);
+
+  let lifecycle = 'active';
+  if (!prev && snapshots.length > 1) lifecycle = 'new';
+  if (sales === 0 && tx === 0) lifecycle = 'never';
+  if (rec >= 12 && rec <= 14) lifecycle = 'critical';
+  else if (rec >= 3 && rec < 12) lifecycle = 'atrisk';
+
+  let movement = {};
+  if (prev){
+    movement.sales = sales - n(prev.salesMAT);
+    movement.transactions = tx - n(prev.transactionsMAT);
+  }
+  const regularGoneQuiet = !!prev && n(prev.transactionsMAT) >= 10 && rec >= 3 && movement.transactions <= 0;
+  return {...c, lifecycle, movement, regularGoneQuiet};
+}
+
+function currentCustomerModel(){
+  const cur = latestSnapshot();
+  if(!cur || !cur.customers.length) return null;
+
+  const prev = snapshots.length > 1 ? snapshots[snapshots.length-2] : null;
+  const prevMap = {};
+  (prev?.customers || []).forEach(c => prevMap[String(c.customer ?? '').trim()] = c);
+
+  const currentIds = new Set(cur.customers.map(c=>String(c.customer ?? '').trim()));
+  const dead = (prev?.customers || []).filter(c => !currentIds.has(String(c.customer ?? '').trim()));
+
+  const enriched = cur.customers.map(c=>classifyCustomer(c, prevMap));
+  return {cur, prev, dead, enriched};
+}
+
+
+function customerPriorityTags(c, prev){
+  const tags=[];
+  const sales=n(c.salesMAT), tx=n(c.transactionsMAT), rec=n(c.recency), loyalty=n(c.loyalty);
+  const prevSales=prev ? n(prev.salesMAT) : 0;
+  const delta=prev ? sales-prevSales : 0;
+  if(rec>=12 && rec<=14) tags.push('critical');
+  if(sales===0 && tx===0) tags.push('never');
+  if(rec>=12 && sales>0) tags.push('lapsed12');
+  if(prev && prevSales>0 && delta<=-(Math.max(1000,prevSales*0.25))) tags.push('spenddrop');
+  if(loyalty>0 && loyalty<35) tags.push('lowloyalty');
+  if(loyalty>=75) tags.push('highloyalty');
+  if(tx===1 && rec>=1) tags.push('oneoff');
+  const kitchen=n(c.kitchenNumberMAT), floor=n(c.flooringMAT), joinery=n(c.joineryMAT);
+  const productTotal=kitchen+floor+joinery;
+  if(productTotal>0){
+    if(kitchen/productTotal>=0.6) tags.push('kitchenheavy');
+    if(floor/productTotal>=0.6) tags.push('flooringheavy');
+    if(joinery/productTotal>=0.6) tags.push('joineryheavy');
+  }
+  if(!prev && sales===0 && tx===0) tags.push('newnostart');
+  if(sales>=20000 && rec>=3) tags.push('highvalueatrisk');
+  if(sales>0 && (n(c.appliancesMAT)===0 || n(c.worktopsMAT)===0 || joinery===0)) tags.push('productgap');
+  return tags;
+}
+function priorityRankForCustomer(c, prev){
+  const tags=customerPriorityTags(c,prev);
+  for(let i=0;i<callPriorityConfig.length;i++){
+    if(tags.includes(callPriorityConfig[i].key)) return i;
+  }
+  return callPriorityConfig.length+1;
+}
+
+function liveGroups(){
+  const model = currentCustomerModel();
+  if(!model){
+    const demo={...demoCustomers};
+    demo.top20=[];
+    demo.newNurture=demo.new.map(c=>({...c,workflow:'newNurture',workflowLabel:'NEW ACCOUNT · CONTACT 1 OF 4',offer:nurtureSettings.newOffers[0]}));
+    demo.oldNurture=demo.critical.map(c=>({...c,workflow:'oldNurture',workflowLabel:`OLD ACCOUNT NURTURE · P${c.months}`,offer:nurtureSettings.oldOffers[0]}));
+    demo.thanks=[];
+    demo.normal=[...demo.atrisk,...demo.growth];
+    return demo;
+  }
+  const prevMapForPriority={};
+  (model.prev?.customers||[]).forEach(pc=>prevMapForPriority[String(pc.customer||'').trim()]=pc);
+
+  const make = c => {
+    const wf=workflowForCustomer(c);
+    const id=String(c.customer||'').trim();
+    return {
+      id,name:c.name||'Unnamed customer',phone:'',months:n(c.recency),
+      last:c.recency===0?'Current period':`${n(c.recency)} periods ago`,
+      sales:n(c.salesMAT),tx:n(c.transactionsMAT),
+      pattern:c.regularGoneQuiet?'Previously regular trader now quiet':'Imported customer',
+      offer:wf?.reason || (c.lifecycle==='critical'?'Urgent reactivation offer':c.lifecycle==='atrisk'?'Re-engagement call / offer':c.lifecycle==='never'?'Secure first trade':'Review growth opportunity'),
+      lastnote:'No BD note recorded',
+      opportunityScore:customerOpportunityScore(c,prevMapForPriority[id]),
+      workflow:wf?.key||null, workflowLabel:wf?.label||null,
+      daysOpen:daysOpenForCustomer(c), recentSpend:recentSpend30(id), recentTransactions:recentTxFor(id)
+    };
+  };
+  const mapped=model.enriched.map(make);
+  const buckets={top20:[],newNurture:[],oldNurture:[],thanks:[],critical:[],atrisk:[],growth:[],new:[],normal:[]};
+  mapped.forEach(m=>{
+    if(m.workflow){ buckets[m.workflow].push(m); return; } // suppression: one best action only
+    const raw=model.enriched.find(c=>String(c.customer||'').trim()===m.id);
+    if(raw?.lifecycle==='critical') buckets.critical.push(m);
+    else if(raw?.lifecycle==='atrisk'||raw?.regularGoneQuiet) buckets.atrisk.push(m);
+    else if(raw?.lifecycle==='new'||raw?.lifecycle==='never') buckets.new.push(m);
+    else if(raw?.lifecycle==='active'&&n(raw.salesMAT)>0) buckets.growth.push(m);
+    if(normalContactDue(m.id)) buckets.normal.push(m);
+  });
+  return buckets;
+}
+
+function dashboardCounts(){
+  const g=liveGroups();
+  return {
+    urgent:(g.critical||[]).length,
+    atrisk:(g.atrisk||[]).length,
+    growth:(g.growth||[]).length,
+    new:(g.new||[]).length,
+    top20:(g.top20||[]).length,
+    newNurture:(g.newNurture||[]).length,
+    oldNurture:(g.oldNurture||[]).length,
+    thanks:(g.thanks||[]).length,
+    normal:(g.normal||[]).length
+  };
+}
+
+function renderHome(){
+  currentView='home'; title.textContent='Today'; setNav('home');
+  const c=dashboardCounts();
+  const m=dashboardMetrics();
+  const p=periodInfo(new Date());
+  app.innerHTML=`
+    <section class="period-banner">
+      <div class="period-code">${p.label}</div>
+      <div class="period-dates">${fmtShortDate(p.start)} – ${fmtShortDate(p.end)}</div>
+      <div style="margin-top:10px">${activeUser()?`<span class="user-chip">${activeUser().manager?'<span class="manager-star">★</span>':''}${activeUser().name}</span>`:'<span class="user-chip">No user selected</span>'}</div>
+    </section>
+
+    <section class="action-lanes">
+      <button class="action-lane calls" data-view-jump="calls">
+        <span class="lane-icon">☎</span>
+        <span class="lane-value">${c.urgent+c.atrisk+c.new}</span>
+        <span class="lane-label">New calls</span>
+        <span class="lane-sub">Work customer priorities</span>
+      </button>
+      <button class="action-lane follow" data-view-jump="leads">
+        <span class="lane-icon">↺</span>
+        <span class="lane-value">${m.followToday+m.overdue}</span>
+        <span class="lane-label">Lead follow-ups</span>
+        <span class="lane-sub">${m.followToday} today · ${m.overdue} overdue</span>
+      </button>
+    </section>
+
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Next best actions</div>
+      <div class="nurture-grid">
+        <button class="nurture-card priority" data-open-group="top20"><b>${c.top20}</b><span>Top 20</span><small>Priority period calls</small></button>
+        <button class="nurture-card" data-open-group="newNurture"><b>${c.newNurture}</b><span>New nurture</span><small>4 conversations / 60 days</small></button>
+        <button class="nurture-card danger" data-open-group="oldNurture"><b>${c.oldNurture}</b><span>Old nurture</span><small>P12–P14 rescue</small></button>
+        <button class="nurture-card" data-open-group="thanks"><b>${c.thanks}</b><span>Given Thanks</span><small>Recent high spend</small></button>
+      </div>
+    </section>
+    ${activeUser()?(()=>{
+      const t=targetStatus(activeUser().id), st=userStreak(activeUser().id);
+      return `<section class="dashboard-block">
+        <div class="dashboard-title">Today’s targets</div>
+        <div class="target-grid">
+          ${t.keys.map(k=>`<div class="target-card"><small>${k[0].toUpperCase()+k.slice(1)}</small><b>${t.actual[k]} / ${t.targets[k]}</b><div class="target-progress"><span style="width:${pct(t.actual[k],t.targets[k])}%"></span></div></div>`).join('')}
+        </div>
+        <div class="streak-strip"><b>🔥 ${st.current} day streak</b><span>Best ${st.best}</span></div>
+      </section>`;
+    })():''}
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">P${p.period} overview</div>
+      <div class="kpi-grid">
+        <button class="kpi-card blue" data-view-jump="stats"><span class="kpi-value">${m.contactPct}%</span><span class="kpi-label">Customers contacted</span><span class="kpi-sub">This 4-week period</span></button>
+        <button class="kpi-card good" data-view-jump="leads"><span class="kpi-value">${money(m.leadValue)}</span><span class="kpi-label">Lead sales value</span><span class="kpi-sub">${m.leadCount} leads required in P${p.period}</span></button>
+        <button class="kpi-card good" data-view-jump="leads"><span class="kpi-value">${money(m.leadMargin)}</span><span class="kpi-label">Lead margin £</span><span class="kpi-sub">${m.marginPct.toFixed(1)}% weighted margin</span></button>
+        <button class="kpi-card blue" data-view-jump="stats"><span class="kpi-value">${m.conversionRate.toFixed(1)}%</span><span class="kpi-label">Lead conversion</span><span class="kpi-sub">Won ÷ period leads</span></button>
+      </div>
+    </section>`;
+  wireCommon();
+}
+
+
+function renderCalls(){
+  currentView='calls'; title.textContent='New Calls'; setNav('calls');
+  const g=liveGroups(), p=currentSalesPeriodNumber(), settings=getPeriodSettings(p);
+  const categories=[
+    ['top20','Top 20 customers',(g.top20||[]).length,'red',nurtureSettings.top20Message],
+    ['newNurture','New account nurture',(g.newNurture||[]).length,'blue','4 successful conversations in first 60 days / until 3 trades'],
+    ['oldNurture','Old account nurture',(g.oldNurture||[]).length,'red','Rescue accounts from P12 before closure at P15'],
+    ['thanks','Given Thanks',(g.thanks||[]).length,'blue',`Thank customers spending ${money(nurtureSettings.thanksThreshold)}+ in 30 days`],
+    ['critical','Urgent',(g.critical||[]).length,'red',settings.messages.critical],
+    ['atrisk','At risk',(g.atrisk||[]).length,'amber',settings.messages.atrisk],
+    ['new','New / never traded',(g.new||[]).length,'blue',settings.messages.new],
+    ['growth','Growth opportunities',(g.growth||[]).length,'green',settings.messages.growth],
+    ['normal','Period contacts',(g.normal||[]).length,'','All other accounts should be spoken to once per sales period']
+  ];
+  app.innerHTML=`<section class="period-banner"><div class="period-code">P${p} call priorities</div><div class="period-dates">One next-best action per customer. Nurture queues suppress duplicate normal calls.</div></section>
+  <section class="call-category-grid">${categories.map(([key,name,count,colour,msg])=>`<button class="call-category" data-open-group="${key}"><span class="badge ${colour}">${name}</span><span class="count">${count}</span><span class="name">${name}</span><span class="msg">${msg}</span></button>`).join('')}</section>`;
+  wireCommon();
+}
+
+function renderGroups(){
+  currentView='groups'; title.textContent='Customer groups'; setNav('groups');
+  const g=liveGroups();
+  const defs = [
+    ['critical','Urgent','12–14 periods no trade',g.critical.length,'red'],
+    ['atrisk','At risk','Quiet / 3+ periods',g.atrisk.length,'amber'],
+    ['growth','Growth opportunities','Active customers',g.growth.length,'green'],
+    ['new','New / never traded','Get the first order',g.new.length,'blue']
+  ];
+  app.innerHTML = `<section class="list">${defs.map(d=>`
+    <button class="group-card" data-open-group="${d[0]}">
+      <div class="row"><div><span class="badge ${d[4]}">${d[1]}</span><h2>${d[2]}</h2><div class="sub">Tap to work through this queue</div></div><div class="metric">${d[3]}</div></div>
+    </button>`).join('')}</section>`;
+  wireCommon();
+}
+
+function reportCounts(){
+  const model=currentCustomerModel();
+  if(!model) return {never:7,quiet:11,drop:9,high:4,one:13,gaps:18,react:7,dead:5};
+  const e=model.enriched;
+  return {
+    never:e.filter(c=>n(c.salesMAT)===0 && n(c.transactionsMAT)===0).length,
+    quiet:e.filter(c=>c.regularGoneQuiet).length,
+    drop:e.filter(c=>c.movement && c.movement.sales<0).length,
+    high:e.filter(c=>n(c.salesMAT)>=20000 && n(c.recency)>=3).length,
+    one:e.filter(c=>n(c.transactionsMAT)===1 && n(c.recency)>=1).length,
+    gaps:e.filter(c=>n(c.salesMAT)>0 && (n(c.appliancesMAT)===0 || n(c.worktopsMAT)===0)).length,
+    react:e.filter(c=>c.movement && c.movement.sales>0 && n(c.recency)<=1).length,
+    dead:model.dead.length
+  };
+}
+
+function renderReports(){
+  currentView='reports'; title.textContent='Key reports'; setNav('reports');
+  const rc=reportCounts();
+  const reports = [
+    ['Never traded',rc.never,'Accounts opened but no sales'],
+    ['Regular trader gone quiet',rc.quiet,'Trading pattern appears to have stopped'],
+    ['Spend dropping',rc.drop,'MAT sales lower than previous upload'],
+    ['High value at risk',rc.high,'Strong historic sales + rising recency'],
+    ['One-off customers',rc.one,'Single transaction then no return'],
+    ['Product gaps',rc.gaps,'Trading but missing appliances/worktops'],
+    ['Reactivated this upload',rc.react,'Positive movement after quiet period'],
+    ['Dead / disappeared',rc.dead,'Present previously but missing now']
+  ];
+  app.innerHTML = `<section class="list">${reports.map(r=>`
+    <button class="report-card">
+      <div class="row"><div><h2>${r[0]}</h2><div class="sub">${r[2]}</div></div><div class="metric">${r[1]}</div></div>
+    </button>`).join('')}</section>`;
+}
+
+function renderImport(){
+  currentView='import'; title.textContent='Import data'; setNav('');
+  const snaps = snapshots.slice().reverse();
+  app.innerHTML = `
+    <section class="form-card">
+      <h2>Upload customer data</h2>
+      <p class="muted">Uses the first worksheet and maps columns 1–38 from the format you supplied.</p>
+      <label class="file-drop">
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv">
+        <b>Choose Excel or CSV file</b>
+        <span class="sub">XLSX, XLSM, XLS or CSV</span>
+      </label>
+      <div class="field"><label>Snapshot date</label><input id="snapshotDate" type="date"></div>
+      <div id="importStatus"></div>
+    </section>
+    <section class="section">
+      <div class="section-head"><h2>Saved snapshots</h2></div>
+      ${snaps.length ? snaps.map(s=>`
+        <div class="snapshot-card">
+          <div class="row"><div><b>${s.date}</b><div class="sub">${s.filename}</div></div><span class="badge">${s.customers.length} customers</span></div>
+        </div>`).join('') : '<div class="sub">No real data uploaded yet. Demo data is still being shown.</div>'}
+    </section>`;
+  const d=document.getElementById('snapshotDate');
+  d.value=new Date().toISOString().slice(0,10);
+  document.getElementById('fileInput').onchange = handleImport;
+}
+
+async function handleImport(ev){
+  const file=ev.target.files[0];
+  if(!file) return;
+  const status=document.getElementById('importStatus');
+  if(typeof XLSX==='undefined'){
+    status.innerHTML='<div class="import-status error">Spreadsheet reader did not load. Check your internet connection and try again.</div>';
+    return;
+  }
+  status.innerHTML='<div class="import-status">Reading file…</div>';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+    const customers=[];
+    for(let i=4;i<rows.length;i++){
+      const row=rows[i] || [];
+      const id=row[0];
+      const name=row[1];
+      if((id===null || id==='') && (name===null || name==='')) continue;
+      const obj={};
+      for(let c=0;c<38;c++) obj[FIELD_NAMES[c]]=row[c] ?? null;
+      customers.push(obj);
+    }
+    const date=document.getElementById('snapshotDate').value || new Date().toISOString().slice(0,10);
+    snapshots.push({
+      id:Date.now(),
+      date,
+      filename:file.name,
+      sheet:wb.SheetNames[0],
+      customers
+    });
+    storage.set('bdm_snapshots', snapshots);
+    status.innerHTML=`<div class="import-status"><b>Imported successfully</b><br>${customers.length} customer rows from "${wb.SheetNames[0]}".</div>`;
+    setTimeout(renderImport,700);
+  }catch(err){
+    status.innerHTML=`<div class="import-status error"><b>Import failed</b><br>${String(err.message || err)}</div>`;
+  }
+}
+
+
+function renderLeads(mode='all'){
+  currentView='leads'; title.textContent='Leads'; setNav('leads');
+  const open=leads.filter(l=>l.status!=='lost');
+  const totalValue=open.reduce((s,l)=>s+n(l.value),0);
+  const totalMargin=open.reduce((s,l)=>s+n(l.margin),0);
+  const totalPct=totalValue ? totalMargin/totalValue*100 : 0;
+
+  let body='';
+  if(mode==='category'){
+    const cats={};
+    open.forEach(l=>{
+      const k=l.category||'Other';
+      if(!cats[k]) cats[k]={count:0,value:0,margin:0};
+      cats[k].count++; cats[k].value+=n(l.value); cats[k].margin+=n(l.margin);
+    });
+    body=`<section class="category-grid">${Object.entries(cats).sort((a,b)=>b[1].value-a[1].value).map(([k,v])=>`
+      <div class="category-row">
+        <div class="row"><b>${k}</b><span class="badge">${v.count}</span></div>
+        <div class="category-stats"><span>Sales <b>${money(v.value)}</b></span><span>Margin <b>${money(v.margin)}</b></span><span><b>${v.value?(v.margin/v.value*100).toFixed(1):'0.0'}%</b></span></div>
+      </div>`).join('')}</section>`;
+  } else if(mode==='period'){
+    const ps={};
+    open.forEach(l=>{
+      const p=leadRequiredPeriod(l)||'No date';
+      if(!ps[p]) ps[p]={count:0,value:0,margin:0};
+      ps[p].count++; ps[p].value+=n(l.value); ps[p].margin+=n(l.margin);
+    });
+    body=`<section class="period-table">${Object.entries(ps).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>{
+      const r=k==='No date'?null:periodRange(Number(k));
+      return `<div class="period-row ${Number(k)===currentSalesPeriodNumber()?'current':''}">
+        <div class="period-head"><div><span class="period-name">${k==='No date'?'No required date':'P'+k}</span>${r?`<div class="sub">${fmtShortDate(r.start)} – ${fmtShortDate(r.end)}</div>`:''}</div><span class="badge">${v.count}</span></div>
+        <div class="period-values"><div><small>Sales</small><b>${money(v.value)}</b></div><div><small>Margin</small><b>${money(v.margin)}</b></div><div><small>Margin %</small><b>${v.value?(v.margin/v.value*100).toFixed(1):'0.0'}%</b></div></div>
+      </div>`;
+    }).join('')}</section>`;
+  } else {
+    const today=isoToday();
+    const sorted=[...open].sort((a,b)=>{
+      const pa=leadStatusBucket(a), pb=leadStatusBucket(b);
+      const pr={overdue:0,today:1,open:2,won:3,lost:4};
+      if(pr[pa]!==pr[pb]) return pr[pa]-pr[pb];
+      return (a.requiredByDate||'9999-12-31').localeCompare(b.requiredByDate||'9999-12-31');
+    });
+    body=`<section class="list">${sorted.map(l=>{
+      const bucket=leadStatusBucket(l);
+      const badge=bucket==='overdue'?'overdue':bucket==='today'?'today':bucket==='won'?'green':'open';
+      const label=bucket==='overdue'?'Overdue':bucket==='today'?'Today':bucket==='won'?'Won':'Open';
+      const p=l.requiredByDate?periodInfo(l.requiredByDate):null;
+      return `<div class="history-card">
+        <div class="row"><div><h2>${l.customer}</h2><div class="lead-period">${p&&p.period?`P${p.period} · W${p.week} · D${p.day}`:'No required date'}</div><div class="sub">Owner: ${l.ownerName||'Unassigned'}</div></div><span class="badge ${badge}">${label}</span></div>
+        <div class="facts">
+          <div class="fact"><small>Category</small><b>${l.category||'Other'}</b></div>
+          <div class="fact"><small>Required</small><b>${l.requiredByDate||'Not set'}</b></div>
+          <div class="fact"><small>Value</small><b>${money(l.value)}</b></div>
+          <div class="fact"><small>Margin</small><b>${money(l.margin)}</b></div>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <span class="stage-badge stage-${normalizeStage(l).toLowerCase().replace(/\s+/g,'').replace('decision','')}">${normalizeStage(l)}</span>
+          <span class="age-chip ${leadAgeDays(l)>28?'old':''}">${leadAgeBucket(l)}</span>
+          <span class="score-pill">${leadOpportunityScore(l)}</span>
+        </div>
+        <p class="sub"><b>Follow-up:</b> ${l.followUpDate||'Not set'} · <b>Quote:</b> ${l.quoteNo||'—'}</p>
+        ${bestTimeForCustomer(l.customerId)?`<div class="best-time">Best time to call: ${bestTimeForCustomer(l.customerId)}</div>`:''}
+        <div class="toolbar" style="margin-top:10px">
+          <button class="filter-btn" data-edit-lead="${l.id}">Update lead</button>
+          <button class="filter-btn" data-snooze-lead="${l.id}">Snooze 2 days</button>
+        </div>
+        ${l.audit?`<div class="audit-line"><b>${l.audit.userName}</b> · ${l.audit.display}</div>`:''}
+      </div>`;
+    }).join('') || `<div class="history-card"><span class="muted">No leads recorded.</span></div>`}</section>`;
+  }
+
+  app.innerHTML=`
+    <section class="kpi-grid" style="margin-bottom:14px">
+      <div class="kpi-card good"><span class="kpi-value">${money(totalValue)}</span><span class="kpi-label">Total lead value</span></div>
+      <div class="kpi-card good"><span class="kpi-value">${money(totalMargin)}</span><span class="kpi-label">Total margin</span><span class="kpi-sub">${totalPct.toFixed(1)}%</span></div>
+    </section>
+    <div class="toolbar">
+      <button class="filter-btn ${mode==='all'?'active':''}" data-lead-mode="all">All leads</button>
+      <button class="filter-btn ${mode==='category'?'active':''}" data-lead-mode="category">By category</button>
+      <button class="filter-btn ${mode==='period'?'active':''}" data-lead-mode="period">By required period</button>
+    </div>
+    ${body}`;
+  document.querySelectorAll('[data-edit-lead]').forEach(btn=>{
+    btn.onclick=()=>renderLeadEditor(btn.dataset.editLead);
+  });
+  document.querySelectorAll('[data-snooze-lead]').forEach(btn=>{
+    btn.onclick=()=>{
+      const lead=leads.find(l=>l.id===btn.dataset.snoozeLead); if(!lead) return;
+      requestPin({
+        title:'Snooze lead',
+        subtitle:'Move follow-up forward by 2 days',
+        onSuccess:(user)=>{
+          const d=lead.followUpDate?localDateOnly(lead.followUpDate):new Date();
+          d.setDate(d.getDate()+2);
+          lead.followUpDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          lead.audit=auditStamp(user,'Lead snoozed');
+          storage.set('bdm_leads',leads);
+          renderLeads('all');
+        }
+      });
+    };
+  });
+}
+
+
+
+function renderLeadEditor(id){
+  const l=leads.find(x=>x.id===id);
+  if(!l) return renderLeads();
+  currentView='leads'; title.textContent='Update lead'; setNav('leads');
+  app.innerHTML=`
+    <section class="form-card">
+      <h2>${l.customer}</h2>
+      <div class="sub">Quote ${l.quoteNo||'—'} · Owner ${l.ownerName||'Unassigned'}</div>
+      <div class="field"><label>Stage</label><select id="editStage">${LEAD_STAGES.map(s=>`<option ${normalizeStage(l)===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Follow-up date</label><input id="editFollow" type="date" value="${l.followUpDate||''}"></div>
+      <div class="field"><label>Estimated date required</label><input id="editRequired" type="date" value="${l.requiredByDate||''}"></div>
+      <div class="field"><label>Owner</label><select id="editOwner">${users.filter(u=>u.active!==false).map(u=>`<option value="${u.id}" ${u.id===l.ownerId?'selected':''}>${u.name}</option>`).join('')}</select></div>
+      <div class="field" id="lossReasonWrap" style="display:${normalizeStage(l)==='Lost'?'block':'none'}"><label>Lost reason</label><select id="lossReason">${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${r}</option>`).join('')}</select></div>
+      <div class="field"><label>Notes</label><textarea id="editNotes">${l.notes||''}</textarea></div>
+      <button class="wide-btn" id="saveLeadEdit">Save changes</button>
+      <button class="wide-btn" id="cancelLeadEdit" style="background:#EDEDED;color:#000">Cancel</button>
+    </section>`;
+  document.getElementById('editStage').onchange=e=>{
+    document.getElementById('lossReasonWrap').style.display=e.target.value==='Lost'?'block':'none';
+  };
+  document.getElementById('cancelLeadEdit').onclick=()=>renderLeads('all');
+  document.getElementById('saveLeadEdit').onclick=()=>{
+    const stage=document.getElementById('editStage').value;
+    requestPin({
+      title:'Save lead update',
+      subtitle:`Confirm update for ${l.customer}`,
+      onSuccess:(user)=>{
+        l.stage=stage;
+        l.status=stage==='Won'?'won':stage==='Lost'?'lost':'open';
+        l.followUpDate=document.getElementById('editFollow').value;
+        l.requiredByDate=document.getElementById('editRequired').value;
+        l.ownerId=document.getElementById('editOwner').value;
+        l.ownerName=(users.find(u=>u.id===l.ownerId)||{}).name||'Unassigned';
+        l.notes=document.getElementById('editNotes').value;
+        l.lossReason=stage==='Lost'?document.getElementById('lossReason').value:'';
+        l.audit=auditStamp(user,`Lead stage changed to ${stage}`);
+        storage.set('bdm_leads',leads);
+        renderLeads('all');
+      }
+    });
+  };
+}
+
+
+function leadStageSummary(list){
+  const out={};
+  LEAD_STAGES.forEach(s=>out[s]={count:0,value:0,margin:0});
+  list.forEach(l=>{
+    const s=normalizeStage(l);
+    if(!out[s]) out[s]={count:0,value:0,margin:0};
+    out[s].count++; out[s].value+=n(l.value); out[s].margin+=n(l.margin);
+  });
+  return out;
+}
+function categoryPerformance(category){
+  const list=leads.filter(l=>l.category===category);
+  const won=list.filter(l=>normalizeStage(l)==='Won');
+  const lost=list.filter(l=>normalizeStage(l)==='Lost');
+  const decided=won.length+lost.length;
+  const avgDaysWon=won.length ? won.reduce((s,l)=>s+leadAgeDays(l),0)/won.length : 0;
+  return {
+    count:list.length,
+    value:list.reduce((s,l)=>s+n(l.value),0),
+    margin:list.reduce((s,l)=>s+n(l.margin),0),
+    winRate:decided?won.length/decided*100:0,
+    avgValue:list.length?list.reduce((s,l)=>s+n(l.value),0)/list.length:0,
+    avgDaysWon
+  };
+}
+function accountBestTimeSummary(){
+  const ids=[...new Set(activity.map(a=>a.customerId).filter(Boolean))];
+  return ids.map(id=>({id,time:bestTimeForCustomer(id)})).filter(x=>x.time);
+}
+
+function renderStats(){
+  currentView='stats'; title.textContent='Stats'; setNav('stats');
+  const m=dashboardMetrics();
+  const p=periodInfo(new Date());
+  app.innerHTML=`
+    <section class="period-banner">
+      <div class="period-code">${p.label}</div>
+      <div class="period-dates">Performance for P${p.period}</div>
+    </section>
+
+    <section class="stat-section">
+      <div class="stat-section-title">Calls & contact</div>
+      <div class="metric-stack">
+        <div class="metric-box"><b>${m.callsMade}</b><span>Calls made</span><small>This period</small></div>
+        <div class="metric-box"><b>${m.successRate.toFixed(1)}%</b><span>Success getting through</span><small>Conversations ÷ calls</small></div>
+        <div class="metric-box"><b>${m.voicemail}</b><span>Voicemails left</span><small>This period</small></div>
+        <div class="metric-box"><b>${m.conversations}</b><span>Conversations</span><small>Spoken to / quoted</small></div>
+        <div class="metric-box"><b>${m.contactPct}%</b><span>Customers contacted</span><small>Of customer base this period</small></div>
+        <div class="metric-box"><b>${m.leadStrike.toFixed(1)}%</b><span>Sales strike rate</span><small>Leads generated ÷ conversations</small></div>
+      </div>
+    </section>
+
+    <section class="stat-section">
+      <div class="stat-section-title">Lead generation</div>
+      <div class="metric-stack">
+        <div class="metric-box"><b>${m.weekLeadCount}</b><span>Leads this week</span><small>${money(m.weekLeadValue)} value</small></div>
+        <div class="metric-box"><b>${money(m.weekLeadMargin)}</b><span>Margin this week</span><small>Generated leads</small></div>
+        <div class="metric-box"><b>${m.leadCount}</b><span>Leads this period</span><small>${money(m.leadValue)} value</small></div>
+        <div class="metric-box"><b>${money(m.leadMargin)}</b><span>Margin this period</span><small>${m.marginPct.toFixed(1)}%</small></div>
+        <div class="metric-box"><b>${m.conversionRate.toFixed(1)}%</b><span>Lead conversion</span><small>Won ÷ period leads</small></div>
+        <div class="metric-box"><b>${m.followToday+m.overdue}</b><span>Follow-ups needing action</span><small>${m.overdue} overdue</small></div>
+      </div>
+    </section>
+    <section class="stat-section">
+      <div class="stat-section-title">Lead ageing</div>
+      <div class="metric-stack">
+        ${['0–7 days','8–14 days','15–28 days','29+ days'].map(bucket=>{
+          const list=leads.filter(l=>!leadIsClosed(l)&&leadAgeBucket(l)===bucket);
+          return `<div class="metric-box"><b>${list.length}</b><span>${bucket}</span><small>${money(list.reduce((s,l)=>s+n(l.value),0))} pipeline</small></div>`;
+        }).join('')}
+      </div>
+    </section>
+
+    <section class="stat-section">
+      <div class="stat-section-title">Lead value by stage</div>
+      <table class="metric-table">
+        <thead><tr><th>Stage</th><th>Leads</th><th>Value</th><th>Margin</th></tr></thead>
+        <tbody>
+          ${Object.entries(leadStageSummary(leads)).map(([stage,v])=>`<tr><td>${stage}</td><td>${v.count}</td><td>${money(v.value)}</td><td>${money(v.margin)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="stat-section">
+      <div class="stat-section-title">Kitchen vs Joinery</div>
+      <div class="metric-stack">
+        ${['Kitchen','Joinery'].map(cat=>{
+          const p=categoryPerformance(cat);
+          return `<div class="metric-box"><b>${p.winRate.toFixed(1)}%</b><span>${cat} win rate</span><small>${p.count} leads · avg ${money(p.avgValue)} · ${money(p.margin)} margin</small></div>`;
+        }).join('')}
+      </div>
+    </section>
+`;
+}
+
+function renderHistory(){
+  currentView='history'; title.textContent='Activity'; setNav('history');
+  app.innerHTML = `<section class="list">${activity.map(a=>`
+    <div class="history-card"><div class="sub">${a.time}</div><h2>${a.customer}</h2><span class="badge">${a.type}</span><p>${a.detail}</p>${a.audit?`<div class="audit-line"><b>${a.audit.userName}</b> · ${a.audit.display}</div>`:''}</div>`).join('')}</section>`;
+}
+
+function openQueue(key){ queueKey=key; queueIndex=0; selectedOutcome=null; renderCustomer(); }
+
+function renderCustomer(successMsg=''){
+  const groups=liveGroups();
+  const q = groups[queueKey] || [];
+  if(!q.length){ app.innerHTML='<div class="success">No customers in this queue.</div><button class="wide-btn" id="backGroups">Back to customer groups</button>'; document.getElementById('backGroups').onclick=renderGroups; return; }
+  if(queueIndex>=q.length){
+    app.innerHTML=`<div class="success">Queue complete. ${q.length} customers reviewed.</div><button class="wide-btn" id="backGroups">Back to customer groups</button>`;
+    document.getElementById('backGroups').onclick=renderGroups; return;
+  }
+  currentView='queue'; setNav('');
+  const c=q[queueIndex];
+  const pct=Math.round((queueIndex/q.length)*100);
+  const qTitles={critical:'Urgent calls',atrisk:'At risk',growth:'Growth',new:'New accounts',top20:'Top 20',newNurture:'New account nurture',oldNurture:'Old account nurture',thanks:'Given Thanks',normal:'Period contacts'};
+  title.textContent=qTitles[queueKey]||'Customer calls';
+  const phoneBlock = c.phone
+    ? `<a class="phone" href="tel:${c.phone.replace(/\s/g,'')}">☎ ${c.phone}</a>`
+    : `<div class="phone" style="color:#71817d">Telephone not in Data tab</div>`;
+  app.innerHTML = `
+    ${successMsg?`<div class="success">${successMsg}</div>`:''}
+    <div class="row"><div class="sub">Customer ${queueIndex+1} of ${q.length}</div><div class="sub">${c.id}</div></div>
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    <section class="customer-card">
+      ${c.workflowLabel?`<div class="why-call"><small>WHY AM I CALLING?</small><b>${c.workflowLabel}</b><span>${c.offer}</span></div>`:''}
+      <h2>${c.name}</h2>
+      ${phoneBlock}
+      <div class="facts">
+        <div class="fact"><small>Last trade</small><b>${c.last}</b></div>
+        <div class="fact"><small>Recency</small><b>${c.months}</b></div>
+        <div class="fact"><small>MAT sales</small><b>${money(c.sales)}</b></div>
+        <div class="fact"><small>Transactions</small><b>${c.tx}</b></div>
+      </div>
+      ${(()=>{
+        const s=accountLeadStats(c.id);
+        return `<div class="facts" style="margin-top:10px">
+          <div class="fact"><small>Lead history</small><b>${s.total}</b></div>
+          <div class="fact"><small>Open</small><b>${s.open}</b></div>
+          <div class="fact"><small>Won / Lost</small><b>${s.won} / ${s.lost}</b></div>
+          <div class="fact"><small>Lead success</small><b>${s.successRate.toFixed(1)}%</b></div>
+        </div>`;
+      })()}
+      <div class="offer"><small>Recommended action</small><b>${c.offer}</b><div class="sub">${c.pattern}</div></div>
+      ${c.workflow==='newNurture'?`<div class="workflow-detail"><b>${nurtureRecord(c.id).newContacts} of 4 nurture conversations complete</b><span>${c.daysOpen} days open · ${c.tx} trades</span></div>`:''}
+      ${c.workflow==='oldNurture'?`<div class="workflow-detail danger"><b>P${c.months} · closure at P15</b><span>${nurtureRecord(c.id).oldContacts} nurture contacts recorded</span></div>`:''}
+      ${c.workflow==='thanks'?`<div class="workflow-detail"><b>${money(c.recentSpend)} spent in last 30 days</b>${(c.recentTransactions||[]).map(t=>`<span>${t.date} · ${money(t.value)} · ${t.category||'Transaction'}${t.detail?' · '+t.detail:''}</span>`).join('')||'<span>No transaction-level detail supplied.</span>'}</div>`:''}
+      <div class="row" style="margin-top:10px"><span class="score-pill">${c.opportunityScore||0}</span><span class="sub">Opportunity score</span></div>
+      ${bestTimeForCustomer(c.id)?`<div class="best-time" style="margin-top:8px">Best time to call: ${bestTimeForCustomer(c.id)}</div>`:''}
+      <p class="sub"><b>Last note:</b> ${c.lastnote}</p>
+      <div class="quick-actions">
+        <button class="good" data-outcome="contact">Spoke to customer</button>
+        <button class="warn" data-outcome="voicemail">Voicemail left</button>
+        <button data-outcome="noanswer">No answer</button>
+        <button data-outcome="quote">Quote given</button>
+      </div>
+      <button class="wide-btn" id="skipBtn" style="background:#edf2f0;color:#18302c">Skip customer</button>
+    </section>`;
+  document.querySelectorAll('[data-outcome]').forEach(b=>b.onclick=()=>renderOutcome(b.dataset.outcome,c));
+  document.getElementById('skipBtn').onclick=()=>{queueIndex++;renderCustomer();};
+}
+
+function renderOutcome(type,c){
+  selectedOutcome=type;
+  const labels = {contact:'Spoke to customer', voicemail:'Voicemail left', noanswer:'No answer', quote:'Quote given'};
+  title.textContent = labels[type];
+  let body = '';
+  if(type==='contact'){
+    body = `
+      <div class="field"><label>Outcome</label><div class="pill-row">
+        <button class="pill active">Offered deal</button><button class="pill">General conversation</button><button class="pill">Customer issue</button><button class="pill">Follow-up required</button>
+      </div></div>
+      <div class="field"><label>Quick note</label><div class="quick-note-grid">${((c.workflow==='thanks'?['Thanked customer for recent business','Everything went well','Customer had an issue','Follow-up required','Further work coming up','New kitchen opportunity','New joinery opportunity','No further work currently','Asked us to quote further work']:c.workflow==='newNurture'?[c.offer,'Checked current work and upcoming jobs','Explained support available','Agreed next nurture contact']:c.workflow==='oldNurture'?[c.offer,'Discussed account before closure','Customer plans to trade again','Customer currently has no work']:contactMessages('spoke'))).map(m=>`<button type="button" class="quick-note-btn" data-quick-note="${m}">${m}</button>`).join('')}</div></div>
+      <div class="field"><label>Deal / offer</label><input id="deal" value="${c.offer}"></div>
+      <div class="field"><label>Notes</label><textarea id="notes" placeholder="Tap a quick note above or add your own details"></textarea></div>
+      <div class="field"><label>Follow-up date</label><input id="follow" type="date"></div>`;
+  } else if(type==='quote'){
+    body = `
+      <div class="field"><label>Lead category</label>
+        <select id="leadCategory">
+          <option>Kitchen</option>
+          <option>Joinery</option>
+        </select>
+      </div>
+      <div class="field"><label>Lead owner</label>
+        <select id="leadOwner">
+          ${users.filter(u=>u.active!==false).map(u=>`<option value="${u.id}" ${u.id===activeUserId?'selected':''}>${u.name}${u.manager?' · Manager':''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Quotation number</label><input id="quoteNo" inputmode="numeric" maxlength="6" pattern="\\d{6}" placeholder="6 digits, e.g. 458271"></div>
+      <div class="field"><label>Lead stage</label>
+        <select id="leadStage">
+          ${LEAD_STAGES.map(s=>`<option ${s==='Quoted'?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Quote details</label><input id="quoteDetails" placeholder="Kitchen or joinery opportunity"></div>
+      <div class="lead-form-grid">
+        <div class="field"><label>Value £</label><input id="value" type="number" step="0.01"></div>
+        <div class="field"><label>Margin £</label><input id="margin" type="number" step="0.01"></div>
+      </div>
+      <div class="field"><label>Margin %</label><input id="marginPct" readonly placeholder="Calculated automatically"></div>
+      <div class="field"><label>Estimated date required</label><input id="requiredBy" type="date"></div>
+      <div id="requiredPeriodHint" class="sub" style="margin-top:6px"></div>
+      <div class="field"><label>Notes</label><textarea id="notes"></textarea></div>
+      <div class="field"><label>Follow-up date</label><input id="follow" type="date"></div>`;
+  } else if(type==='voicemail'){
+    body = `<div class="field"><label>Voicemail type</label><div class="pill-row"><button class="pill active">Offer left</button><button class="pill">General callback</button></div></div>
+      <div class="field"><label>Quick voicemail note</label><div class="quick-note-grid">${((c.workflow==='thanks'?['Left voicemail thanking them for recent business','Asked them to call back if they need anything','Mentioned we would like to help with upcoming work']:c.workflow==='newNurture'?[`Left voicemail regarding ${c.offer}`,'Asked customer to call back']:c.workflow==='oldNurture'?[`Left voicemail regarding ${c.offer}`,'Asked customer to call back before account closure']:contactMessages('voicemail'))).map(m=>`<button type="button" class="quick-note-btn" data-quick-note="${m}">${m}</button>`).join('')}</div></div>
+      <div class="field"><label>Notes</label><textarea id="notes" placeholder="Tap a quick note above or add your own details"></textarea></div>
+      <div class="field"><label>Follow-up date</label><input id="follow" type="date"></div>`;
+  } else {
+    body = `<div class="field"><label>Reason</label><div class="reason-grid">
+      ${LOSS_REASONS.map((r,i)=>`<button type="button" data-reason="${r}" class="${i===0?'active':''}">${r}</button>`).join('')}
+      </div><input type="hidden" id="reasonCode" value="${LOSS_REASONS[0]}"></div>
+      <div class="field"><label>Notes</label><textarea id="notes" placeholder="Optional"></textarea></div>
+      <div class="field"><label>Try again</label><input id="follow" type="date"></div>`;
+  }
+
+  app.innerHTML = `
+    <section class="form-card">
+      <div class="sub">${c.name} · ${c.id}</div><h2>${labels[type]}</h2>${body}
+
+      ${type==='contact'?`<div class="permission-toggle"><div><b>Survey booked</b><div class="sub">Counts towards the daily survey target.</div></div><input id="surveyBooked" type="checkbox"></div>`:''}
+      <div class="field"><label>Call duration</label>
+        <input id="callDuration" type="number" min="0" step="1" placeholder="Minutes">
+        <div class="duration-quick">
+          <button type="button" data-duration="1">1m</button>
+          <button type="button" data-duration="2">2m</button>
+          <button type="button" data-duration="5">5m</button>
+          <button type="button" data-duration="10">10m</button>
+          <button type="button" data-duration="15">15m</button>
+        </div>
+      </div>
+      <button class="wide-btn" id="saveNext">Save & next customer</button>
+      <button class="wide-btn" id="cancelOutcome" style="background:#edf2f0;color:#18302c">Back</button>
+    </section>`;
+
+  document.querySelectorAll('.pill').forEach(p=>p.onclick=()=>{p.parentElement.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));p.classList.add('active');});
+
+  document.querySelectorAll('[data-reason]').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('[data-reason]').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('reasonCode').value=btn.dataset.reason;
+    };
+  });
+
+
+  if(type==='quote'){
+    const value=document.getElementById('value'), margin=document.getElementById('margin'), pct=document.getElementById('marginPct');
+    const calc=()=>{ const v=+value.value,m=+margin.value; pct.value=v>0?(m/v*100).toFixed(1)+'%':''; };
+    value.oninput=calc; margin.oninput=calc;
+    const req=document.getElementById('requiredBy'),hint=document.getElementById('requiredPeriodHint'); const updateRequired=()=>{hint.textContent=req.value?`Required in ${periodLabelForDate(req.value)}`:'Choose a required-by date to assign this lead to a sales period.'}; req.oninput=updateRequired; updateRequired();
+  }
+  document.querySelectorAll('[data-quick-note]').forEach(btn=>{
+    btn.onclick=()=>{
+      const notes=document.getElementById('notes');
+      const msg=btn.dataset.quickNote;
+      const existing=notes.value.trim();
+      if(!existing.includes(msg)) notes.value=existing ? existing + (existing.endsWith('.')?' ':'; ') + msg : msg;
+      btn.classList.toggle('active');
+    };
+  });
+
+  document.querySelectorAll('[data-duration]').forEach(btn=>{
+    btn.onclick=()=>{
+      document.getElementById('callDuration').value=btn.dataset.duration;
+      document.querySelectorAll('[data-duration]').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+    };
+  });
+  document.getElementById('cancelOutcome').onclick=()=>renderCustomer();
+  document.getElementById('saveNext').onclick=()=>{
+    if(type==='quote' && !/^\d{6}$/.test(document.getElementById('quoteNo').value.trim())){
+      document.getElementById('quoteNo').focus();
+      alert('Quotation number must be exactly 6 digits.');
+      return;
+    }
+    if(type==='quote' && !document.getElementById('requiredBy').value){
+      document.getElementById('requiredBy').focus();
+      document.getElementById('requiredPeriodHint').textContent='Estimated date required is needed so the lead can be assigned to a sales period.';
+      return;
+    }
+
+    const payload = {
+      type,
+      notes:document.getElementById('notes')?.value || '',
+      follow:document.getElementById('follow')?.value || '',
+      deal:document.getElementById('deal')?.value || '',
+      durationMinutes:+document.getElementById('callDuration')?.value || 0,
+      reasonCode:document.getElementById('reasonCode')?.value || '',
+      surveyBooked:!!document.getElementById('surveyBooked')?.checked
+    };
+    if(type==='quote'){
+      payload.quoteNo=document.getElementById('quoteNo').value||'';
+      payload.quoteDetails=document.getElementById('quoteDetails').value||'';
+      payload.stage=document.getElementById('leadStage').value||'Quoted';
+      payload.value=+document.getElementById('value').value||0;
+      payload.margin=+document.getElementById('margin').value||0;
+      payload.category=document.getElementById('leadCategory').value||'Kitchen';
+      payload.ownerId=document.getElementById('leadOwner').value||activeUserId||'';
+      payload.requiredBy=document.getElementById('requiredBy').value||'';
+    }
+
+    requestPin({
+      title:type==='quote'?'Save lead':'Save contact',
+      subtitle:`Confirm this update for ${c.name}`,
+      onSuccess:(user)=>{
+        const now=new Date();
+        let detail='';
+        if(type==='quote'){
+          const mp=payload.value ? (payload.margin/payload.value*100).toFixed(1)+'%' : '—';
+          detail=`${payload.quoteDetails||'Quote'} · Quote ${payload.quoteNo||'No number'} · ${money(payload.value)} · ${mp} margin`;
+        } else {
+          detail=payload.notes || labels[type];
+        }
+
+        const audit=auditStamp(user, type==='quote'?'Lead created':labels[type]);
+        activity.unshift({
+          iso:now.toISOString(),
+          time:now.toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}),
+          customer:c.name,
+          customerId:c.id,
+          type:labels[type],
+          detail,
+          durationMinutes:payload.durationMinutes,
+          reasonCode:payload.reasonCode,
+          surveyBooked:payload.surveyBooked,
+          workflow:c.workflow||null,
+          audit
+        });
+        storage.set('bdm_activity', activity);
+
+        if(type==='quote'){
+          leads.unshift({
+            id:'L'+Date.now(),
+            createdAt:now.toISOString(),
+            customer:c.name,
+            customerId:c.id,
+            ownerId:payload.ownerId || user.id,
+            ownerName:(users.find(u=>u.id===(payload.ownerId || user.id))||user).name,
+            category:payload.category,
+            quoteNo:payload.quoteNo,
+            details:payload.quoteDetails,
+            value:payload.value,
+            margin:payload.margin,
+            requiredByDate:payload.requiredBy,
+            followUpDate:payload.follow,
+            stage:payload.stage,
+            status:payload.stage==='Won'?'won':payload.stage==='Lost'?'lost':'open',
+            notes:payload.notes,
+            audit
+          });
+          storage.set('bdm_leads', leads);
+        }
+
+        if(type==='contact'){
+          const prog=nurtureRecord(c.id);
+          if(c.workflow==='newNurture') prog.newContacts=Math.min(4,n(prog.newContacts)+1);
+          if(c.workflow==='oldNurture'){ prog.oldContacts=n(prog.oldContacts)+1; prog.lastOldContact=isoToday(); }
+          if(c.workflow==='thanks'){
+            const latest=(c.recentTransactions||[])[0]?.date;
+            if(latest) prog.thanksHandledThrough=latest;
+          }
+          storage.set('bdm_nurture_progress',nurtureProgress);
+        }
+        updateTargetHistory(user);
+        queueIndex++;
+        renderCustomer(type==='quote' ? '✓ Lead recorded' : '✓ Contact recorded');
+      }
+    });
+  };
+}
+
+
+
+
+function callAnalytics(){
+  const callActs=activity.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type) && a.iso);
+  const byDay={}, byHour={}, successByHour={};
+  let durationTotal=0,durationCount=0;
+  callActs.forEach(a=>{
+    const d=new Date(a.iso);
+    const day=d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const hour=d.getHours();
+    byDay[day]=(byDay[day]||0)+1;
+    byHour[hour]=(byHour[hour]||0)+1;
+    if(a.type==='Spoke to customer'||a.type==='Quote given') successByHour[hour]=(successByHour[hour]||0)+1;
+    if(n(a.durationMinutes)>0){durationTotal+=n(a.durationMinutes);durationCount++;}
+  });
+  return {byDay,byHour,successByHour,avgDuration:durationCount?durationTotal/durationCount:0};
+}
+
+
+function managerInterventions(){
+  const today=isoToday(), out=[];
+  leads.forEach(l=>{
+    if(leadIsClosed(l)) return;
+    const age=leadAgeDays(l);
+    if(l.followUpDate && l.followUpDate<today) out.push({type:'Overdue lead',text:`${l.customer} · ${l.ownerName||'Unassigned'} · ${money(l.value)}`});
+    if(age>28) out.push({type:'Lead 29+ days old',text:`${l.customer} · ${l.ownerName||'Unassigned'} · ${normalizeStage(l)}`});
+    if(n(l.value)>=10000 && !l.followUpDate) out.push({type:'High-value lead with no follow-up',text:`${l.customer} · ${money(l.value)} · ${l.ownerName||'Unassigned'}`});
+  });
+  const m=dashboardMetrics();
+  users.filter(u=>u.active!==false).forEach(u=>{
+    const overdue=leads.filter(l=>l.ownerId===u.id && !leadIsClosed(l) && l.followUpDate && l.followUpDate<today).length;
+    if(overdue>=3) out.push({type:'Staff overdue workload',text:`${u.name} has ${overdue} overdue leads`});
+  });
+  return out.slice(0,50);
+}
+
+function renderManager(){
+  const u=activeUser();
+  if(!u?.manager){
+    requestPin({
+      title:'Manager access',
+      subtitle:'Enter a manager PIN',
+      managerOnly:true,
+      onSuccess:()=>renderManager()
+    });
+    return;
+  }
+  currentView='manager'; title.textContent='Manager'; setNav('manager');
+  const today=isoToday();
+  const activeUsers=users.filter(x=>x.active!==false);
+  const staff=activeUsers.map(user=>{
+    const owned=leads.filter(l=>l.ownerId===user.id && l.status!=='lost');
+    const value=owned.reduce((s,l)=>s+n(l.value),0);
+    const margin=owned.reduce((s,l)=>s+n(l.margin),0);
+    const overdue=owned.filter(l=>l.status!=='won' && l.status!=='lost' && l.followUpDate && l.followUpDate<today).length;
+    const dueToday=owned.filter(l=>l.status!=='won' && l.status!=='lost' && l.followUpDate===today).length;
+    const open=owned.filter(l=>l.status!=='won' && l.status!=='lost').length;
+    const won=owned.filter(l=>l.status==='won').length;
+    const lost=owned.filter(l=>l.status==='lost').length;
+    const decided=won+lost;
+    const success=decided ? won/decided*100 : 0;
+    return {user,owned,value,margin,overdue,dueToday,open,won,lost,success};
+  });
+  const totalValue=staff.reduce((s,x)=>s+x.value,0);
+  const totalMargin=staff.reduce((s,x)=>s+x.margin,0);
+  const totalOverdue=staff.reduce((s,x)=>s+x.overdue,0);
+  const totalToday=staff.reduce((s,x)=>s+x.dueToday,0);
+
+  app.innerHTML=`
+    <section class="period-banner">
+      <div class="period-code">Manager overview</div>
+      <div class="period-dates">${periodInfo(new Date()).label}</div>
+    </section>
+
+    <section class="kpi-grid">
+      <div class="kpi-card good"><span class="kpi-value">${money(totalValue)}</span><span class="kpi-label">Lead value</span><span class="kpi-sub">All staff</span></div>
+      <div class="kpi-card good"><span class="kpi-value">${money(totalMargin)}</span><span class="kpi-label">Margin £</span><span class="kpi-sub">${totalValue?(totalMargin/totalValue*100).toFixed(1):'0.0'}%</span></div>
+      <div class="kpi-card alert"><span class="kpi-value">${totalOverdue}</span><span class="kpi-label">Overdue leads</span><span class="kpi-sub">Across team</span></div>
+      <div class="kpi-card warn"><span class="kpi-value">${totalToday}</span><span class="kpi-label">Calls due today</span><span class="kpi-sub">Lead follow-ups</span></div>
+    </section>
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">By staff member</div>
+      <div class="manager-summary">
+        ${staff.map(s=>`
+          <div class="manager-user-card">
+            <div class="row"><h3>${s.user.name}</h3>${s.user.manager?'<span class="badge amber">Manager</span>':''}</div>
+            <div class="mini-grid">
+              <div class="mini"><small>Leads</small><b>${s.open}</b></div>
+              <div class="mini"><small>Value</small><b>${money(s.value)}</b></div>
+              <div class="mini"><small>Margin</small><b>${money(s.margin)}</b></div>
+              <div class="mini"><small>Margin %</small><b>${s.value?(s.margin/s.value*100).toFixed(1):'0.0'}%</b></div>
+              <div class="mini"><small>Lead success</small><b>${s.success.toFixed(1)}%</b></div>
+              <div class="mini"><small>Won / Lost</small><b>${s.won} / ${s.lost}</b></div>
+              <div class="mini"><small>Overdue</small><b>${s.overdue}</b></div>
+              <div class="mini"><small>Due today</small><b>${s.dueToday}</b></div>
+              ${(()=>{
+                const t=userTarget(s.user.id);
+                return `<div class="mini"><small>Pipeline target</small><b>${t.pipeline?Math.round(s.value/t.pipeline*100):0}%</b></div>
+                <div class="mini"><small>Lead target</small><b>${t.leads?Math.round(s.owned.length/t.leads*100):0}%</b></div>`;
+              })()}
+            </div>
+          </div>`).join('')}
+      </div>
+    </section>
+
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Period target progress</div>
+      ${(()=>{
+        const t=currentPeriodTarget(), m=dashboardMetrics();
+        const items=[
+          ['Sales',m.leadValue,t.sales,money(m.leadValue),money(t.sales)],
+          ['Margin',m.leadMargin,t.margin,money(m.leadMargin),money(t.margin)],
+          ['Leads',m.leadCount,t.leads,m.leadCount,t.leads],
+          ['Customer contact',m.contactPct,t.contactPct,m.contactPct+'%',t.contactPct+'%']
+        ];
+        return `<div class="target-grid">${items.map(([label,a,target,shownA,shownT])=>`
+          <div class="target-card"><small>${label}</small><b>${shownA}</b><small>Target ${shownT||0}</small><div class="target-progress"><span style="width:${pct(a,target)}%"></span></div></div>`).join('')}</div>`;
+      })()}
+    </section>
+
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Nurture & priority performance</div>
+      ${(()=>{
+        const g=liveGroups();
+        return `<div class="kpi-grid">
+          <div class="kpi-card"><span class="kpi-value">${(g.top20||[]).length}</span><span class="kpi-label">Top 20 outstanding</span></div>
+          <div class="kpi-card"><span class="kpi-value">${(g.newNurture||[]).length}</span><span class="kpi-label">New nurture due</span></div>
+          <div class="kpi-card"><span class="kpi-value">${(g.oldNurture||[]).length}</span><span class="kpi-label">Old nurture due</span></div>
+          <div class="kpi-card"><span class="kpi-value">${(g.thanks||[]).length}</span><span class="kpi-label">Given Thanks due</span></div>
+        </div>`;
+      })()}
+      <div class="settings-card" style="margin-top:10px">
+        <b>Daily target streaks</b>
+        ${users.filter(u=>u.active!==false).map(u=>{const s=targetStatus(u.id),st=userStreak(u.id);return `<div class="analytics-row"><span>${u.name}</span><div class="bar-track"><div class="bar-fill success" style="width:${s.keys.length?s.achieved.length/s.keys.length*100:0}%"></div></div><b>${st.current} day</b></div>`}).join('')}
+      </div>
+    </section>
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Manager interventions</div>
+      ${managerInterventions().map(x=>`<div class="intervention-card"><b>${x.type}</b><small>${x.text}</small></div>`).join('') || '<div class="history-card"><span class="muted">No intervention alerts right now.</span></div>'}
+    </section>
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Overdue leads</div>
+      <div class="list">
+        ${leads.filter(l=>l.status!=='won'&&l.status!=='lost'&&l.followUpDate&&l.followUpDate<today).sort((a,b)=>a.followUpDate.localeCompare(b.followUpDate)).map(l=>`
+          <div class="history-card">
+            <div class="row"><div><b>${l.customer}</b><div class="sub">${l.ownerName||'Unassigned'}</div></div><span class="badge overdue">${l.followUpDate}</span></div>
+            <div class="sub">${l.category||'Other'} · ${money(l.value)} · ${money(l.margin)} margin</div>
+          </div>`).join('') || '<div class="history-card"><span class="muted">No overdue leads.</span></div>'}
+      </div>
+    </section>
+
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Call analytics</div>
+      ${(()=>{
+        const a=callAnalytics();
+        const maxDay=Math.max(1,...Object.values(a.byDay));
+        const maxHour=Math.max(1,...Object.values(a.byHour));
+        const maxSuccess=Math.max(1,...Object.values(a.successByHour));
+        return `
+          <div class="kpi-grid" style="margin-bottom:12px">
+            <div class="kpi-card"><span class="kpi-value">${a.avgDuration.toFixed(1)}m</span><span class="kpi-label">Average call duration</span></div>
+            <div class="kpi-card"><span class="kpi-value">${Object.values(a.byDay).reduce((s,v)=>s+v,0)}</span><span class="kpi-label">Calls recorded</span></div>
+          </div>
+          <div class="settings-card">
+            <b>Calls made per day</b>
+            <div class="analytics-bars" style="margin-top:10px">
+              ${Object.entries(a.byDay).slice(-14).map(([label,count])=>`
+                <div class="analytics-row"><span class="small-note">${label}</span><div class="bar-track"><div class="bar-fill" style="width:${count/maxDay*100}%"></div></div><b>${count}</b></div>`).join('') || '<span class="muted">No calls recorded yet.</span>'}
+            </div>
+          </div>
+          <div class="settings-card">
+            <b>Time of day of calls</b>
+            <div class="analytics-bars" style="margin-top:10px">
+              ${Array.from({length:12},(_,i)=>i+8).map(hour=>{
+                const count=a.byHour[hour]||0;
+                return `<div class="analytics-row"><span class="small-note">${String(hour).padStart(2,'0')}:00</span><div class="bar-track"><div class="bar-fill" style="width:${count/maxHour*100}%"></div></div><b>${count}</b></div>`;
+              }).join('')}
+            </div>
+          </div>
+          <div class="settings-card">
+            <b>Time of day of successful calls</b>
+            <div class="analytics-bars" style="margin-top:10px">
+              ${Array.from({length:12},(_,i)=>i+8).map(hour=>{
+                const count=a.successByHour[hour]||0;
+                return `<div class="analytics-row"><span class="small-note">${String(hour).padStart(2,'0')}:00</span><div class="bar-track"><div class="bar-fill success" style="width:${count/maxSuccess*100}%"></div></div><b>${count}</b></div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      })()}
+    </section>
+
+    <section class="dashboard-block">
+      <div class="dashboard-title">Calls needed today</div>
+      <div class="list">
+        ${leads.filter(l=>l.status!=='won'&&l.status!=='lost'&&l.followUpDate===today).map(l=>`
+          <div class="history-card">
+            <div class="row"><div><b>${l.customer}</b><div class="sub">${l.ownerName||'Unassigned'}</div></div><span class="badge today">Today</span></div>
+            <div class="sub">${l.category||'Other'} · ${money(l.value)}</div>
+          </div>`).join('') || '<div class="history-card"><span class="muted">No lead follow-up calls due today.</span></div>'}
+      </div>
+    </section>`;
+}
+
+function renderSettings(){
+  currentView='settings'; title.textContent='Settings'; setNav('');
+  const p=currentSalesPeriodNumber();
+  const s=getPeriodSettings(p);
+  app.innerHTML=`
+    <section class="settings-card">
+      <div class="row"><div><h2>P${p} sales messages</h2><div class="sub">Set on D1 or change at any point during the period.</div></div><span class="badge">P${p}</span></div>
+
+      <div class="setting-row"><label>Urgent / 12–14 periods</label><textarea id="msgCritical">${s.messages.critical}</textarea></div>
+      <div class="setting-row"><label>At risk</label><textarea id="msgAtRisk">${s.messages.atrisk}</textarea></div>
+      <div class="setting-row"><label>New / never traded</label><textarea id="msgNew">${s.messages.new}</textarea></div>
+      <div class="setting-row"><label>Growth opportunities</label><textarea id="msgGrowth">${s.messages.growth}</textarea></div>
+
+      <div class="settings-actions">
+        <button class="save" id="saveSettings">Save P${p}</button>
+        <button class="close" id="closeSettings">Cancel</button>
+      </div>
+    </section>
+    
+
+      <section class="settings-card">
+        <div class="row"><div><h2>Call priority order</h2><div class="sub">Manager-controlled order used to decide which customer types are surfaced first.</div></div><span class="badge">${callPriorityConfig.length}</span></div>
+        <div class="priority-list">
+          ${callPriorityConfig.map((p,i)=>`
+            <div class="priority-item">
+              <div class="priority-rank">${i+1}</div>
+              <div class="priority-text"><b>${p.label}</b><small>${p.desc}</small></div>
+              <div class="priority-controls">
+                <button type="button" data-priority-up="${i}" ${i===0?'disabled':''}>↑</button>
+                <button type="button" data-priority-down="${i}" ${i===callPriorityConfig.length-1?'disabled':''}>↓</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        <button class="wide-btn" id="savePriorityOrder">Save priority order</button>
+      </section>
+
+
+
+      <section class="settings-card">
+        <div class="row"><div><h2>Nurture workflows</h2><div class="sub">Manager controls for new accounts, old accounts and Given Thanks.</div></div><span class="badge">Nurture</span></div>
+        <div class="setting-row"><label>New account offers – contacts 1 to 4</label><textarea id="newNurtureOffers" rows="5">${nurtureSettings.newOffers.join('\n')}</textarea><div class="small-note">Exactly four lines recommended.</div></div>
+        <div class="setting-row"><label>Old account offers – P12 to P14 rescue sequence</label><textarea id="oldNurtureOffers" rows="6">${nurtureSettings.oldOffers.join('\n')}</textarea></div>
+        <div class="user-form-grid">
+          <div class="setting-row"><label>Days between old-account offers</label><input id="oldSpacingDays" type="number" value="${nurtureSettings.oldSpacingDays}"></div>
+          <div class="setting-row"><label>Given Thanks 30-day threshold £</label><input id="thanksThreshold" type="number" value="${nurtureSettings.thanksThreshold}"></div>
+        </div>
+        <div class="setting-row"><label>Top 20 customer account numbers</label><textarea id="top20Ids" rows="6" placeholder="One account number per line">${(nurtureSettings.top20||[]).join('\n')}</textarea></div>
+        <div class="setting-row"><label>Top 20 period message</label><textarea id="top20Message">${nurtureSettings.top20Message}</textarea></div>
+        <button class="wide-btn" id="saveNurtureSettings">Save nurture settings</button>
+      </section>
+
+      <section class="settings-card">
+        <div class="row"><div><h2>Daily targets & streaks</h2><div class="sub">Targets can be enabled independently. Monday–Friday target days build streaks.</div></div><span class="badge">Daily</span></div>
+        ${['calls','conversations','leads','surveys'].map(k=>`<div class="permission-toggle"><div><b>${k[0].toUpperCase()+k.slice(1)}</b></div><div style="display:flex;gap:8px;align-items:center"><input data-target-value="${k}" type="number" min="0" value="${n(nurtureSettings.dailyTargets[k])}" style="width:80px"><input data-target-enabled="${k}" type="checkbox" ${nurtureSettings.enabledTargets[k]?'checked':''}></div></div>`).join('')}
+        <button class="wide-btn" id="saveDailyTargets">Save daily targets</button>
+      </section>
+
+      <section class="settings-card">
+        <div class="row"><div><h2>P${p} targets</h2><div class="sub">Set period and staff activity targets.</div></div><span class="badge">Targets</span></div>
+        ${(()=>{
+          const t=currentPeriodTarget();
+          return `<div class="user-form-grid">
+            <div class="setting-row"><label>Sales target £</label><input id="targetSales" type="number" value="${t.sales||''}"></div>
+            <div class="setting-row"><label>Margin target £</label><input id="targetMargin" type="number" value="${t.margin||''}"></div>
+            <div class="setting-row"><label>Lead target</label><input id="targetLeads" type="number" value="${t.leads||''}"></div>
+            <div class="setting-row"><label>Contact target %</label><input id="targetContact" type="number" value="${t.contactPct||''}"></div>
+          </div>`;
+        })()}
+        <h3 style="margin-top:16px">Staff targets</h3>
+        ${users.filter(u=>u.active!==false).map(u=>{
+          const t=userTarget(u.id);
+          return `<div class="settings-card" style="margin-top:9px">
+            <b>${u.name}</b>
+            <div class="user-form-grid">
+              <div class="setting-row"><label>Calls/day</label><input data-ut="${u.id}" data-k="calls" type="number" value="${t.calls||''}"></div>
+              <div class="setting-row"><label>Conversations/day</label><input data-ut="${u.id}" data-k="conversations" type="number" value="${t.conversations||''}"></div>
+              <div class="setting-row"><label>Leads/period</label><input data-ut="${u.id}" data-k="leads" type="number" value="${t.leads||''}"></div>
+              <div class="setting-row"><label>Pipeline £</label><input data-ut="${u.id}" data-k="pipeline" type="number" value="${t.pipeline||''}"></div>
+              <div class="setting-row"><label>Margin £</label><input data-ut="${u.id}" data-k="margin" type="number" value="${t.margin||''}"></div>
+            </div>
+          </div>`;
+        }).join('')}
+        <button class="wide-btn" id="saveTargets">Save targets</button>
+      </section>
+
+      <section class="settings-card">
+        <div class="row"><div><h2>Standard call notes</h2><div class="sub">Manager-controlled one-tap messages used after calls and voicemails.</div></div><span class="badge">Quick notes</span></div>
+        <div class="setting-row"><label>Spoke to customer buttons</label><textarea id="spokeMessages" rows="9">${contactMessages('spoke').join('\n')}</textarea><div class="small-note">One message per line.</div></div>
+        <div class="setting-row"><label>Voicemail buttons</label><textarea id="vmMessages" rows="7">${contactMessages('voicemail').join('\n')}</textarea><div class="small-note">One message per line.</div></div>
+        <button class="wide-btn" id="saveStandardMessages">Save standard messages</button>
+      </section>
+
+      <section class="settings-card">
+        <div class="row"><div><h2>Users</h2><div class="sub">Each user has a 4 digit PIN. Manager users get the Manager tab.</div></div><span class="badge">${users.filter(u=>u.active!==false).length} active</span></div>
+
+        <div class="user-form-grid">
+          <div class="setting-row"><label>Name</label><input id="newUserName" placeholder="e.g. Paul"></div>
+          <div class="setting-row"><label>4 digit PIN</label><input id="newUserPin" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+        </div>
+        <div class="permission-toggle"><div><b>Manager permissions</b><div class="sub">Shows manager reporting menu.</div></div><input id="newUserManager" type="checkbox"></div>
+        <button class="wide-btn" id="addUserBtn">Add user</button>
+
+        <div class="user-list">
+          ${users.map(u=>`<div class="user-card">
+            <div class="row"><div><b>${u.name}</b><div class="role">${u.manager?'Manager':'User'} · ${u.active===false?'Inactive':'Active'}</div></div>
+            <button class="filter-btn" data-toggle-user="${u.id}">${u.active===false?'Activate':'Deactivate'}</button></div>
+          </div>`).join('')}
+        </div>
+      </section>
+`;
+  document.getElementById('saveSettings').onclick=()=>{
+    const values={
+      critical:document.getElementById('msgCritical').value,
+      atrisk:document.getElementById('msgAtRisk').value,
+      new:document.getElementById('msgNew').value,
+      growth:document.getElementById('msgGrowth').value
+    };
+    requestPin({
+      title:'Save period settings',
+      subtitle:`Confirm changes for P${p}`,
+      onSuccess:(user)=>{
+        savePeriodSettings(p,{...values,_audit:auditStamp(user,'Period settings updated')});
+        renderCalls();
+      }
+    });
+  };
+
+  document.querySelectorAll('[data-priority-up]').forEach(btn=>{
+    btn.onclick=()=>{
+      const i=Number(btn.dataset.priorityUp);
+      if(i>0){[callPriorityConfig[i-1],callPriorityConfig[i]]=[callPriorityConfig[i],callPriorityConfig[i-1]];renderSettings();}
+    };
+  });
+  document.querySelectorAll('[data-priority-down]').forEach(btn=>{
+    btn.onclick=()=>{
+      const i=Number(btn.dataset.priorityDown);
+      if(i<callPriorityConfig.length-1){[callPriorityConfig[i+1],callPriorityConfig[i]]=[callPriorityConfig[i],callPriorityConfig[i+1]];renderSettings();}
+    };
+  });
+  document.getElementById('savePriorityOrder').onclick=()=>{
+    requestPin({
+      title:'Save call priorities',
+      subtitle:'Manager PIN required',
+      managerOnly:true,
+      onSuccess:()=>{
+        storage.set('bdm_call_priorities',callPriorityConfig);
+        renderCalls();
+      }
+    });
+  };
+
+  document.getElementById('saveStandardMessages').onclick=()=>{
+    const spoke=document.getElementById('spokeMessages').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    const voicemail=document.getElementById('vmMessages').value.split('\n').map(x=>x.trim()).filter(Boolean);
+    requestPin({title:'Save standard call notes',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
+      standardContactMessages={spoke,voicemail};
+      storage.set('bdm_standard_contact_messages',standardContactMessages);
+      renderSettings();
+    }});
+  };
+
+
+  document.getElementById('saveNurtureSettings').onclick=()=>{
+    requestPin({title:'Save nurture settings',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
+      nurtureSettings.newOffers=document.getElementById('newNurtureOffers').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,4);
+      nurtureSettings.oldOffers=document.getElementById('oldNurtureOffers').value.split('\n').map(x=>x.trim()).filter(Boolean);
+      nurtureSettings.oldSpacingDays=+document.getElementById('oldSpacingDays').value||18;
+      nurtureSettings.thanksThreshold=+document.getElementById('thanksThreshold').value||0;
+      nurtureSettings.top20=document.getElementById('top20Ids').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,20);
+      nurtureSettings.top20Message=document.getElementById('top20Message').value.trim();
+      storage.set('bdm_nurture_settings',nurtureSettings);
+      renderSettings();
+    }});
+  };
+  document.getElementById('saveDailyTargets').onclick=()=>{
+    requestPin({title:'Save daily targets',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
+      document.querySelectorAll('[data-target-value]').forEach(i=>nurtureSettings.dailyTargets[i.dataset.targetValue]=+i.value||0);
+      document.querySelectorAll('[data-target-enabled]').forEach(i=>nurtureSettings.enabledTargets[i.dataset.targetEnabled]=i.checked);
+      storage.set('bdm_nurture_settings',nurtureSettings);
+      renderSettings();
+    }});
+  };
+
+  document.getElementById('saveTargets').onclick=()=>{
+    requestPin({
+      title:'Save targets',
+      subtitle:'Manager PIN required',
+      managerOnly:true,
+      onSuccess:(manager)=>{
+        periodTargets[p]={
+          sales:+document.getElementById('targetSales').value||0,
+          margin:+document.getElementById('targetMargin').value||0,
+          leads:+document.getElementById('targetLeads').value||0,
+          contactPct:+document.getElementById('targetContact').value||0,
+          audit:auditStamp(manager,'Period targets updated')
+        };
+        if(!userTargets[p]) userTargets[p]={};
+        document.querySelectorAll('[data-ut]').forEach(inp=>{
+          const uid=inp.dataset.ut, key=inp.dataset.k;
+          if(!userTargets[p][uid]) userTargets[p][uid]={calls:0,conversations:0,leads:0,pipeline:0,margin:0};
+          userTargets[p][uid][key]=+inp.value||0;
+        });
+        storage.set('bdm_period_targets',periodTargets);
+        storage.set('bdm_user_targets',userTargets);
+        renderSettings();
+      }
+    });
+  };
+  document.getElementById('addUserBtn').onclick=()=>{
+    const name=document.getElementById('newUserName').value.trim();
+    const pin=document.getElementById('newUserPin').value.trim();
+    const manager=document.getElementById('newUserManager').checked;
+    if(!name){alert('Enter a user name.');return;}
+    if(!/^\d{4}$/.test(pin)){alert('PIN must be exactly 4 digits.');return;}
+    requestPin({
+      title:'Add user',
+      subtitle:'A manager PIN is required to add users.',
+      managerOnly:true,
+      onSuccess:async(admin)=>{
+        const pinHash=await sha256(pin);
+        users.push({id:'U'+Date.now(),name,pinHash,manager,active:true,createdAudit:auditStamp(admin,'User created')});
+        storage.set('bdm_users',users);
+        renderSettings();
+      }
+    });
+  };
+  document.querySelectorAll('[data-toggle-user]').forEach(btn=>{
+    btn.onclick=()=>{
+      const target=users.find(u=>u.id===btn.dataset.toggleUser);
+      if(!target) return;
+      requestPin({
+        title:target.active===false?'Activate user':'Deactivate user',
+        subtitle:'A manager PIN is required.',
+        managerOnly:true,
+        onSuccess:(admin)=>{
+          target.active=target.active===false?true:false;
+          target.updatedAudit=auditStamp(admin,target.active?'User activated':'User deactivated');
+          storage.set('bdm_users',users);
+          if(target.id===activeUserId && !target.active){activeUserId=null;storage.set('bdm_active_user',null);}
+          syncManagerSession();
+          renderSettings();
+        }
+      });
+    };
+  });
+  document.getElementById('closeSettings').onclick=renderHome;
+}
+
+function wireCommon(){
+  document.querySelectorAll('[data-open-group]').forEach(b=>b.onclick=()=>openQueue(b.dataset.openGroup));
+  document.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>go(b.dataset.viewJump));
+}
+function go(view){
+  if(view==='home')syncManagerSession();
+
+document.querySelectorAll('[data-pin]').forEach(btn=>{
+  btn.onclick=()=>{
+    const v=btn.dataset.pin;
+    if(v==='clear') pinBuffer='';
+    else if(v==='back') pinBuffer=pinBuffer.slice(0,-1);
+    else if(pinBuffer.length<4) pinBuffer+=v;
+    updatePinDots();
+    if(pinBuffer.length===4) submitPinIfReady();
+  };
+});
+document.getElementById('pinCancel').onclick=closePinModal;
+document.getElementById('pinUserSelect').onchange=()=>{pinBuffer='';updatePinDots();document.getElementById('pinError').textContent='';};
+
+renderHome();
+  if(view==='calls')renderCalls();
+  if(view==='groups')renderGroups();
+  if(view==='reports')renderReports();
+  if(view==='history')renderHistory();
+  if(view==='import')renderImport();
+  if(view==='leads')renderLeads();
+  if(view==='stats')renderStats();
+  if(view==='settings')renderSettings();
+  if(view==='manager')renderManager();
+}
+document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
+document.getElementById('homeBtn').onclick=renderHome;
+document.getElementById('settingsBtn').onclick=renderSettings;
+renderHome();
+
+</script>
 </body>
 </html>
