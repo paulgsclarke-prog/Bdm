@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BDM Starter</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-word">HANDSOME</div>
+        <div class="eyebrow">Business Development</div>
+        <h1 id="pageTitle">Today</h1>
+      </div>
+      <div class="header-tools"><button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button><button class="icon-btn" id="homeBtn" aria-label="Home">⌂</button></div>
+    </header>
+
+    <main id="app"></main>
+
+    <nav class="bottom-nav" id="bottomNav">
+      <button data-view="home" class="nav-btn active"><span>⌂</span><small>Home</small></button>
+      <button data-view="calls" class="nav-btn"><span>☎</span><small>New Calls</small></button>
+      <button data-view="leads" class="nav-btn"><span>£</span><small>Leads</small></button>
+      <button data-view="stats" class="nav-btn"><span>▤</span><small>Stats</small></button>
+      <button data-view="manager" class="nav-btn manager-only" style="display:none"><span>★</span><small>Manager</small></button>
+    </nav>
+  </div>
+
+  <template id="homeTemplate">
+    <section class="hero">
+      <div>
+        <div class="hero-number">12</div>
+        <div class="hero-label">customers need attention today</div>
+      </div>
+      <button class="primary-btn" data-open-group="critical">Start calls</button>
+    </section>
+
+    <section class="stats-grid">
+      <button class="stat-card urgent" data-open-group="critical">
+        <span class="big">4</span><span>Urgent</span><small>12–14 months</small>
+      </button>
+      <button class="stat-card warning" data-open-group="atrisk">
+        <span class="big">8</span><span>At risk</span><small>3–6 months</small>
+      </button>
+      <button class="stat-card positive" data-open-group="growth">
+        <span class="big">6</span><span>Growth</span><small>Opportunity</small>
+      </button>
+      <button class="stat-card neutral" data-open-group="new">
+        <span class="big">3</span><span>New</span><small>Need first trade</small>
+      </button>
+    </section>
+
+    <section class="section">
+      <div class="section-head"><h2>Quick actions</h2></div>
+      <div class="action-grid">
+        <button class="action-card" data-view-jump="groups"><span>◎</span><b>Customer groups</b><small>Work through a call list</small></button>
+        <button class="action-card" data-view-jump="reports"><span>▤</span><b>Key reports</b><small>Find what has changed</small></button>
+        <button class="action-card"><span>⇧</span><b>Import data</b><small>Upload latest customer file</small></button>
+        <button class="action-card" data-view-jump="history"><span>↺</span><b>Activity</b><small>Recent calls & quotes</small></button>
+      </div>
+    </section>
+  </template>
+
+  <div id="pinModal" class="pin-modal hidden" aria-hidden="true">
+    <div class="pin-sheet">
+      <div class="pin-brand">HANDSOME</div>
+      <h2 id="pinTitle">Confirm save</h2>
+      <div class="sub" id="pinSubtitle">Enter your 4 digit PIN</div>
+      <div class="pin-user-row">
+        <select id="pinUserSelect"></select>
+      </div>
+      <div class="pin-dots" id="pinDots">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="pin-error" id="pinError"></div>
+      <div class="pin-pad">
+        <button data-pin="1">1</button><button data-pin="2">2</button><button data-pin="3">3</button>
+        <button data-pin="4">4</button><button data-pin="5">5</button><button data-pin="6">6</button>
+        <button data-pin="7">7</button><button data-pin="8">8</button><button data-pin="9">9</button>
+        <button data-pin="clear">C</button><button data-pin="0">0</button><button data-pin="back">⌫</button>
+      </div>
+      <button class="pin-cancel" id="pinCancel">Cancel</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
