@@ -1152,6 +1152,72 @@ let recentTransactions = storage.get('bdm_recent_transactions', [
   {customerId:'A12661',date:'2026-10-01',value:6200,category:'Kitchen',margin:2294,detail:'Kitchen + appliances'}
 ]);
 let targetHistory = storage.get('bdm_target_history', {});
+let dailyUserTargets = storage.get('bdm_daily_user_targets', {});
+let ytdReport = storage.get('bdm_ytd_report', null);
+function dailyTargetFor(userId){
+  if(dailyUserTargets[userId]) return dailyUserTargets[userId];
+  const oldStaff=userTarget(userId);
+  const targets={calls:20,conversations:0,leads:3,surveys:2,...nurtureSettings.dailyTargets};
+  const enabled={calls:true,conversations:false,leads:true,surveys:true,...nurtureSettings.enabledTargets};
+  ['calls','conversations'].forEach(k=>{if(n(oldStaff[k])>0){targets[k]=n(oldStaff[k]);enabled[k]=true;}});
+  return {targets,enabled};
+}
+users.forEach(u=>{if(!dailyUserTargets[u.id]) dailyUserTargets[u.id]=dailyTargetFor(u.id);});
+storage.set('bdm_daily_user_targets',dailyUserTargets);
+function reportNumber(value){
+  if(typeof value==='number') return Number.isFinite(value)?value:0;
+  const text=String(value??'').trim();
+  const amount=Number(text.replace(/[£$,\s()]/g,''));
+  return Number.isFinite(amount)?(text.startsWith('(')?-amount:amount):0;
+}
+function top20Customers(){
+  const rows=ytdReport?.customers || (latestSnapshot()?.customers||[]).filter(c=>c.salesYTD!=null);
+  const unique=new Map();
+  rows.forEach(c=>{const id=String(c.customer??'').trim();if(id) unique.set(id,{...c,customer:id,salesYTD:reportNumber(c.salesYTD)});});
+  return [...unique.values()].filter(c=>c.salesYTD>0).sort((a,b)=>b.salesYTD-a.salesYTD || a.customer.localeCompare(b.customer)).slice(0,20);
+}
+function ytdColumns(rows){
+  const norm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  for(let i=0;i<Math.min(rows.length,30);i++){
+    const heads=(rows[i]||[]).map(norm);
+    const customer=heads.findIndex(h=>['customer','customerno','customernumber','customeraccount','account','accountno','accountnumber','accountcode','customercode'].includes(h));
+    let sales=heads.findIndex(h=>h.includes('ytd') && (h.includes('sales')||h.includes('spend')||h==='ytd'));
+    if(sales<0) sales=heads.findIndex(h=>h.includes('yeartodate') && (h.includes('sales')||h.includes('spend')||h==='yeartodate'));
+    if(sales<0) sales=heads.findIndex(h=>['sales','salesvalue','salesamount','netsales','turnover','spend'].includes(h));
+    const name=heads.findIndex(h=>['name','customername','accountname'].includes(h));
+    if(customer>=0 && sales>=0) return {header:i,customer,sales,name};
+  }
+  return null;
+}
+function parseYtdRows(rows,columns){
+  const customers=[];
+  for(const row of rows.slice(columns.header+1)){
+    const customer=String(row[columns.customer]??'').trim();
+    if(!customer || /^(grand\s*total|total|subtotal)$/i.test(customer)) continue;
+    if(row[columns.sales]==null || String(row[columns.sales]).trim()==='') continue;
+    customers.push({customer,name:columns.name>=0?String(row[columns.name]??'').trim():'',salesYTD:reportNumber(row[columns.sales])});
+  }
+  return customers;
+}
+async function handleYtdImport(ev){
+  const file=ev.target.files[0], status=document.getElementById('ytdImportStatus');
+  if(!file) return;
+  try{
+    if(typeof XLSX==='undefined') throw new Error('Spreadsheet reader did not load. Please refresh and try again.');
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    let found=null;
+    for(const sheet of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,defval:null,raw:true});
+      const columns=ytdColumns(rows);
+      if(columns){found={customers:parseYtdRows(rows,columns),sheet};break;}
+    }
+    if(!found?.customers.length) throw new Error('No customer and YTD sales columns found. Use account/customer number and Sales YTD (or Sales in a YTD report).');
+    ytdReport={...found,filename:file.name,date:isoToday()};
+    storage.set('bdm_ytd_report',ytdReport);
+    renderSettings();
+  }catch(err){status.textContent=String(err.message||err);status.className='import-status error';}
+}
+
 
 function periodActivityForCustomer(id){
   const p=currentSalesPeriodNumber();
@@ -1185,7 +1251,7 @@ function recentTxFor(id){
   return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)<=30)
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 }
-function top20Set(){ return new Set((nurtureSettings.top20||[]).map(x=>String(x).trim()).filter(Boolean)); }
+function top20Set(){ return new Set(top20Customers().map(c=>c.customer)); }
 function normalContactDue(id){
   return !periodActivityForCustomer(id).some(a=>a.type==='Spoke to customer');
 }
@@ -1223,8 +1289,9 @@ function todaysUserMetrics(userId){
 }
 function targetStatus(userId){
   const actual=todaysUserMetrics(userId);
-  const targets=nurtureSettings.dailyTargets||{};
-  const enabled=nurtureSettings.enabledTargets||{};
+  const config=dailyTargetFor(userId);
+  const targets=config.targets;
+  const enabled=config.enabled;
   const keys=['calls','conversations','leads','surveys'].filter(k=>enabled[k] && n(targets[k])>0);
   const achieved=keys.filter(k=>actual[k]>=n(targets[k]));
   return {actual,targets,enabled,keys,achieved,complete:keys.length>0&&achieved.length===keys.length};
@@ -1389,6 +1456,7 @@ const app = document.getElementById('app');
 const title = document.getElementById('pageTitle');
 const homeTemplate = document.getElementById('homeTemplate');
 
+function escapeHtml(v){return String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
 function money(v){ return '£' + Number(v || 0).toLocaleString('en-GB', {maximumFractionDigits:0}); }
 function n(v){ const x = Number(v); return Number.isFinite(x) ? x : 0; }
 function setNav(view){ document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view)); }
@@ -1468,7 +1536,8 @@ function liveGroups(){
   const model = currentCustomerModel();
   if(!model){
     const demo={...demoCustomers};
-    demo.top20=[];
+    const top=top20Customers(), allDemo=Object.values(demoCustomers).flat();
+    demo.top20=top.filter(c=>normalContactDue(c.customer)).map(c=>({...allDemo.find(d=>d.id===c.customer),id:c.customer,name:c.name||allDemo.find(d=>d.id===c.customer)?.name||c.customer,sales:c.salesYTD,salesLabel:'YTD sales',tx:0,phone:'',workflow:'top20',workflowLabel:'TOP 20 CUSTOMER · YTD',offer:nurtureSettings.top20Message}));
     demo.newNurture=demo.new.map(c=>({...c,workflow:'newNurture',workflowLabel:'NEW ACCOUNT · CONTACT 1 OF 4',offer:nurtureSettings.newOffers[0]}));
     demo.oldNurture=demo.critical.map(c=>({...c,workflow:'oldNurture',workflowLabel:`OLD ACCOUNT NURTURE · P${c.months}`,offer:nurtureSettings.oldOffers[0]}));
     demo.thanks=[];
@@ -1493,7 +1562,10 @@ function liveGroups(){
       daysOpen:daysOpenForCustomer(c), recentSpend:recentSpend30(id), recentTransactions:recentTxFor(id)
     };
   };
-  const mapped=model.enriched.map(make);
+  const ytdTop=top20Customers(), ytdIds=new Set(ytdTop.map(c=>c.customer));
+  const mapped=model.enriched.map(c=>{const m=make(c);if(ytdIds.has(m.id)){m.salesYTD=ytdTop.find(t=>t.customer===m.id).salesYTD;}return m;});
+  const importedIds=new Set(mapped.map(c=>c.id));
+  ytdTop.filter(c=>!importedIds.has(c.customer) && normalContactDue(c.customer)).forEach(c=>mapped.push({id:c.customer,name:c.name||c.customer,phone:'',sales:c.salesYTD,salesLabel:'YTD sales',tx:0,workflow:'top20',workflowLabel:'TOP 20 CUSTOMER · YTD',offer:nurtureSettings.top20Message,lastnote:'From YTD report'}));
   const buckets={top20:[],newNurture:[],oldNurture:[],thanks:[],critical:[],atrisk:[],growth:[],new:[],normal:[]};
   mapped.forEach(m=>{
     if(m.workflow){ buckets[m.workflow].push(m); return; } // suppression: one best action only
@@ -1504,6 +1576,7 @@ function liveGroups(){
     else if(raw?.lifecycle==='active'&&n(raw.salesMAT)>0) buckets.growth.push(m);
     if(normalContactDue(m.id)) buckets.normal.push(m);
   });
+  buckets.top20.sort((a,b)=>ytdTop.findIndex(c=>c.customer===a.id)-ytdTop.findIndex(c=>c.customer===b.id));
   return buckets;
 }
 
@@ -1695,6 +1768,7 @@ async function handleImport(ev){
     const ws=wb.Sheets[wb.SheetNames[0]];
     const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
     const customers=[];
+    const ytdHeader=rows.slice(0,4).map(row=>(row||[]).findIndex(v=>/ytd|year\s*to\s*date/i.test(String(v||'')) && /sales|spend/i.test(String(v||'')))).find(i=>i>=0);
     for(let i=4;i<rows.length;i++){
       const row=rows[i] || [];
       const id=row[0];
@@ -1702,6 +1776,7 @@ async function handleImport(ev){
       if((id===null || id==='') && (name===null || name==='')) continue;
       const obj={};
       for(let c=0;c<38;c++) obj[FIELD_NAMES[c]]=row[c] ?? null;
+      if(ytdHeader!=null) obj.salesYTD=reportNumber(row[ytdHeader]);
       customers.push(obj);
     }
     const date=document.getElementById('snapshotDate').value || new Date().toISOString().slice(0,10);
@@ -2001,7 +2076,7 @@ function renderCustomer(successMsg=''){
       <div class="facts">
         <div class="fact"><small>Last trade</small><b>${c.last}</b></div>
         <div class="fact"><small>Recency</small><b>${c.months}</b></div>
-        <div class="fact"><small>MAT sales</small><b>${money(c.sales)}</b></div>
+        <div class="fact"><small>${c.salesLabel||'MAT sales'}</small><b>${money(c.sales)}</b></div>
         <div class="fact"><small>Transactions</small><b>${c.tx}</b></div>
       </div>
       ${(()=>{
@@ -2500,14 +2575,20 @@ function renderSettings(){
           <div class="setting-row"><label>Days between old-account offers</label><input id="oldSpacingDays" type="number" value="${nurtureSettings.oldSpacingDays}"></div>
           <div class="setting-row"><label>Given Thanks 30-day threshold £</label><input id="thanksThreshold" type="number" value="${nurtureSettings.thanksThreshold}"></div>
         </div>
-        <div class="setting-row"><label>Top 20 customer account numbers</label><textarea id="top20Ids" rows="6" placeholder="One account number per line">${(nurtureSettings.top20||[]).join('\n')}</textarea></div>
+        <div class="setting-row"><label>Top 20 customers from YTD report</label>
+          <div class="sub">Automatically selects the 20 customers with the highest YTD sales, then prioritises their first conversation each period.</div>
+          <label class="file-drop"><input id="ytdFileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv"><b>Upload YTD report</b><span class="sub">Customer/account number, name and YTD sales</span></label>
+          <div id="ytdImportStatus" class="sub">${ytdReport?'Report uploaded · '+ytdReport.date+' · '+ytdReport.customers.length+' customers':'No YTD report uploaded yet.'}</div>
+          <div class="list" style="margin-top:10px">${top20Customers().map((c,i)=>`<div class="row"><span>${i+1}. ${escapeHtml(c.name||c.customer)} <small class="muted">${escapeHtml(c.customer)}</small></span><b>${money(c.salesYTD)}</b></div>`).join('')}</div>
+        </div>
         <div class="setting-row"><label>Top 20 period message</label><textarea id="top20Message">${nurtureSettings.top20Message}</textarea></div>
         <button class="wide-btn" id="saveNurtureSettings">Save nurture settings</button>
       </section>
 
       <section class="settings-card">
         <div class="row"><div><h2>Daily targets & streaks</h2><div class="sub">Targets can be enabled independently. Monday–Friday target days build streaks.</div></div><span class="badge">Daily</span></div>
-        ${['calls','conversations','leads','surveys'].map(k=>`<div class="permission-toggle"><div><b>${k[0].toUpperCase()+k.slice(1)}</b></div><div style="display:flex;gap:8px;align-items:center"><input data-target-value="${k}" type="number" min="0" value="${n(nurtureSettings.dailyTargets[k])}" style="width:80px"><input data-target-enabled="${k}" type="checkbox" ${nurtureSettings.enabledTargets[k]?'checked':''}></div></div>`).join('')}
+        <div class="sub">Set separate daily targets for each user. Only their own activity counts towards their targets and streak.</div>
+        ${users.filter(u=>u.active!==false).map(u=>{const config=dailyTargetFor(u.id);return `<div class="settings-card"><h3>${escapeHtml(u.name)}</h3>${['calls','conversations','leads','surveys'].map(k=>`<div class="permission-toggle"><label for="daily-${u.id}-${k}"><b>${k[0].toUpperCase()+k.slice(1)}</b></label><div style="display:flex;gap:8px;align-items:center"><input id="daily-${u.id}-${k}" data-target-user="${u.id}" data-target-value="${k}" aria-label="${escapeHtml(u.name)} ${k} daily target" type="number" min="0" step="1" value="${n(config.targets[k])}" style="width:80px"><input data-target-user="${u.id}" data-target-enabled="${k}" aria-label="Enable ${escapeHtml(u.name)} ${k} daily target" type="checkbox" ${config.enabled[k]?'checked':''}></div></div>`).join('')}</div>`;}).join('')}
         <button class="wide-btn" id="saveDailyTargets">Save daily targets</button>
       </section>
 
@@ -2528,8 +2609,7 @@ function renderSettings(){
           return `<div class="settings-card" style="margin-top:9px">
             <b>${u.name}</b>
             <div class="user-form-grid">
-              <div class="setting-row"><label>Calls/day</label><input data-ut="${u.id}" data-k="calls" type="number" value="${t.calls||''}"></div>
-              <div class="setting-row"><label>Conversations/day</label><input data-ut="${u.id}" data-k="conversations" type="number" value="${t.conversations||''}"></div>
+              <div class="sub">Daily activity targets are set in Daily targets & streaks above.</div>
               <div class="setting-row"><label>Leads/period</label><input data-ut="${u.id}" data-k="leads" type="number" value="${t.leads||''}"></div>
               <div class="setting-row"><label>Pipeline £</label><input data-ut="${u.id}" data-k="pipeline" type="number" value="${t.pipeline||''}"></div>
               <div class="setting-row"><label>Margin £</label><input data-ut="${u.id}" data-k="margin" type="number" value="${t.margin||''}"></div>
@@ -2616,13 +2696,16 @@ function renderSettings(){
   };
 
 
+  document.getElementById('ytdFileInput').onchange=ev=>{
+    const file=ev.target.files[0];if(!file) return;
+    requestPin({title:'Upload YTD report',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>handleYtdImport({target:{files:[file]}})});
+  };
   document.getElementById('saveNurtureSettings').onclick=()=>{
     requestPin({title:'Save nurture settings',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
       nurtureSettings.newOffers=document.getElementById('newNurtureOffers').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,4);
       nurtureSettings.oldOffers=document.getElementById('oldNurtureOffers').value.split('\n').map(x=>x.trim()).filter(Boolean);
       nurtureSettings.oldSpacingDays=+document.getElementById('oldSpacingDays').value||18;
       nurtureSettings.thanksThreshold=+document.getElementById('thanksThreshold').value||0;
-      nurtureSettings.top20=document.getElementById('top20Ids').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,20);
       nurtureSettings.top20Message=document.getElementById('top20Message').value.trim();
       storage.set('bdm_nurture_settings',nurtureSettings);
       renderSettings();
@@ -2630,9 +2713,12 @@ function renderSettings(){
   };
   document.getElementById('saveDailyTargets').onclick=()=>{
     requestPin({title:'Save daily targets',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
-      document.querySelectorAll('[data-target-value]').forEach(i=>nurtureSettings.dailyTargets[i.dataset.targetValue]=+i.value||0);
-      document.querySelectorAll('[data-target-enabled]').forEach(i=>nurtureSettings.enabledTargets[i.dataset.targetEnabled]=i.checked);
-      storage.set('bdm_nurture_settings',nurtureSettings);
+      const next={...dailyUserTargets};
+      users.forEach(u=>{const config=dailyTargetFor(u.id);next[u.id]={targets:{...config.targets},enabled:{...config.enabled}};});
+      document.querySelectorAll('[data-target-value]').forEach(i=>next[i.dataset.targetUser].targets[i.dataset.targetValue]=Math.max(0,Math.floor(+i.value||0)));
+      document.querySelectorAll('[data-target-enabled]').forEach(i=>next[i.dataset.targetUser].enabled[i.dataset.targetEnabled]=i.checked);
+      dailyUserTargets=next;
+      storage.set('bdm_daily_user_targets',dailyUserTargets);
       renderSettings();
     }});
   };
