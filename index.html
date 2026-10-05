@@ -5079,6 +5079,35 @@ renderManager=function(){
   const first=app.querySelector('.form-card');if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Work allocation';btn.onclick=renderWorkAssignment;first.append(btn);}
 };
 
+
+/* V40: prevent deactivating staff while unfinished work is still assigned. */
+function outstandingWorkForUser(userId){
+  return {
+    leads:leads.filter(l=>l.ownerId===userId&&!leadIsClosed(l)),
+    followups:followups.filter(f=>f.ownerId===userId&&!f.completedAt),
+    surveys:surveys.filter(s=>s.ownerId===userId&&s.status==='booked'),
+    campaigns:campaigns.filter(c=>c.ownerId===userId&&c.active!==false)
+  };
+}
+const safeDeactivationSettings=renderSettings;
+renderSettings=function(){
+  safeDeactivationSettings();
+  document.querySelectorAll('[data-toggle-user]').forEach(btn=>{
+    const target=users.find(u=>u.id===btn.dataset.toggleUser);
+    if(!target||target.active===false)return;
+    const original=btn.onclick;
+    btn.onclick=()=>{
+      const work=outstandingWorkForUser(target.id),count=work.leads.length+work.followups.length+work.surveys.length+work.campaigns.length;
+      if(count){
+        alert(target.name+' still has '+count+' unfinished assigned item'+(count===1?'':'s')+'. Reassign the work before deactivating this user.');
+        renderWorkAssignment();
+        return;
+      }
+      original();
+    };
+  });
+};
+
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
 document.getElementById('customerSearchBtn').onclick=()=>renderCustomerSearch();
