@@ -4520,6 +4520,47 @@ renderReports=function(){
   document.querySelectorAll('[data-product-gap]').forEach(b=>{const e=entries.find(x=>x[0]===b.dataset.productGap);b.onclick=()=>openProductGap(e[0],e[1]);});
 };
 
+
+/* V30: make all key reports actionable. */
+function keyReportLists(){
+  const model=currentCustomerModel();
+  if(!model)return {};
+  const e=model.enriched,changes=databaseChanges();
+  return {
+    never:e.filter(c=>n(c.salesMAT)===0&&n(c.transactionsMAT)===0),
+    quiet:e.filter(c=>c.regularGoneQuiet),
+    drop:e.filter(c=>c.movement&&c.movement.sales<0).sort((a,b)=>n(a.movement.sales)-n(b.movement.sales)),
+    high:e.filter(c=>n(c.salesMAT)>=20000&&n(c.recency)>=3).sort((a,b)=>n(b.salesMAT)-n(a.salesMAT)),
+    one:e.filter(c=>n(c.transactionsMAT)===1&&n(c.recency)>=1),
+    react:changes.reactivated||[],
+    dead:model.dead||[]
+  };
+}
+const actionableReportsRenderer=renderReports;
+renderReports=function(){
+  actionableReportsRenderer();
+  const lists=keyReportLists();
+  const cards=[...app.querySelectorAll('.report-card')];
+  const defs=[
+    ['Never traded',lists.never,'Secure the first order and understand the customer’s current work'],
+    ['Regular trader gone quiet',lists.quiet,'Understand why this regular customer has stopped trading and win back upcoming work'],
+    ['Spend dropping',lists.drop,'Understand the spend decline and identify work we can win back'],
+    ['High value at risk',lists.high,'Protect this high-value relationship and understand what work is coming next'],
+    ['One-off customers',lists.one,'Find out what happened after the first order and identify the next opportunity'],
+    ['Product gaps',null,null],
+    ['Reactivated this upload',lists.react,'Thank the customer for returning and identify their next opportunity'],
+    ['Dead / disappeared',lists.dead,'Check why the account has disappeared and whether it can be reactivated']
+  ];
+  cards.forEach((card,i)=>{
+    const def=defs[i];if(!def||!def[1])return;
+    card.onclick=()=>renderDatabaseChangeList(def[0],def[1],def[2],c=>{
+      if(def[0]==='Spend dropping')return '<span class="change-delta down">'+money(c.movement?.sales||c.delta||0)+'</span>';
+      if(def[0]==='High value at risk')return '<span class="badge">'+money(c.salesMAT)+'</span>';
+      return '';
+    });
+  });
+};
+
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
 document.getElementById('customerSearchBtn').onclick=()=>renderCustomerSearch();
