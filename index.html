@@ -1067,6 +1067,42 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .allocation-summary b{display:block;font-size:20px}.allocation-summary small{display:block;color:#646363;margin-top:3px}
 .allocation-item{border:1px solid #ddd9d1;border-radius:6px;background:#fff;padding:11px;margin-top:8px}
 .allocation-item select{width:100%;margin-top:8px;border:1px solid #d7d4cc;border-radius:5px;padding:10px;background:#fff}
+
+/* V41 simple ring home */
+.simple-home{display:grid;gap:14px}
+.simple-home-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.simple-home-head h2{margin:0;font-size:24px}
+.simple-home-head .sub{margin-top:3px}
+.ring-section{background:#fff;border-radius:18px;padding:16px;box-shadow:var(--shadow)}
+.ring-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.ring-section-head h2{font-size:18px}
+.ring-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 10px}
+.progress-ring-card{text-align:center;min-width:0}
+.progress-ring{--p:0;width:108px;height:108px;margin:0 auto;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--brand) calc(var(--p)*1%),#e5e9e7 0);position:relative}
+.progress-ring:before{content:"";position:absolute;inset:10px;border-radius:50%;background:#fff}
+.progress-ring-inner{position:relative;z-index:1;display:grid;place-items:center;line-height:1.05}
+.progress-ring-inner b{font-size:24px}
+.progress-ring-inner small{font-size:10px;color:var(--muted);margin-top:3px}
+.progress-ring-card>strong{display:block;font-size:13px;margin-top:8px}
+.progress-ring-card>small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.progress-ring.complete{background:conic-gradient(var(--green) 100%,#e5e9e7 0)}
+.progress-ring.over{box-shadow:0 0 0 4px #e4f3e7}
+.home-summary-strip{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 2px 0;font-size:12px;color:var(--muted)}
+.home-summary-strip b{color:var(--ink)}
+.simple-next{background:#fff;border-radius:18px;padding:16px;box-shadow:var(--shadow);border-left:5px solid var(--brand)}
+.simple-next small{display:block;color:var(--muted);font-weight:800;letter-spacing:.04em}
+.simple-next h2{font-size:20px;margin:5px 0}
+.simple-next p{margin:0;color:var(--muted)}
+.simple-next-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.simple-next-tags span{font-size:10px;font-weight:800;background:#edf2f0;color:#456159;border-radius:999px;padding:5px 7px}
+.simple-next-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.simple-next-actions button{border:1px solid var(--brand);border-radius:12px;padding:13px 10px;background:#fff;color:var(--brand);font-weight:850}
+.simple-next-actions button.primary{background:var(--brand);color:#fff}
+.home-complete{background:#eef6f2;border-radius:14px;padding:14px;text-align:center}
+.home-complete b{display:block;font-size:18px}.home-complete small{display:block;color:var(--muted);margin-top:3px}
+@media(min-width:540px){.ring-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:360px){.progress-ring{width:94px;height:94px}.progress-ring-inner b{font-size:21px}}
+
 </style>
 </head>
 <body>
@@ -5106,6 +5142,52 @@ renderSettings=function(){
       original();
     };
   });
+};
+
+
+/* V41: replace crowded Home with simple daily + period target rings. */
+function homeRing(label,actual,target,format='number'){
+  const a=n(actual),t=n(target),progress=t>0?Math.min(100,a/t*100):0,complete=t>0&&a>=t;
+  const show=v=>format==='money'?money(v):format==='percent'?Number(v).toFixed(0)+'%':Math.round(v).toLocaleString('en-GB');
+  return '<div class="progress-ring-card"><div class="progress-ring '+(complete?'complete over':'')+'" style="--p:'+progress.toFixed(1)+'"><div class="progress-ring-inner"><b>'+Math.round(progress)+'%</b><small>'+show(a)+' / '+show(t)+'</small></div></div><strong>'+esc(label)+'</strong><small>'+(complete?'Target achieved':show(Math.max(0,t-a))+' to go')+'</small></div>';
+}
+function configuredDailyRings(userId){
+  const s=targetStatus(userId),labels={calls:'Calls',conversations:'Conversations',leads:'Leads',surveys:'Surveys'};
+  return s.keys.map(k=>homeRing(labels[k],s.actual[k],s.targets[k]));
+}
+function configuredPeriodRings(){
+  const t=currentPeriodTarget(),m=dashboardMetrics(),rings=[];
+  if(n(t.sales)>0)rings.push(homeRing('Sales',m.leadValue,t.sales,'money'));
+  if(n(t.margin)>0)rings.push(homeRing('Margin',m.leadMargin,t.margin,'money'));
+  if(n(t.leads)>0)rings.push(homeRing('Leads',m.leadCount,t.leads));
+  if(n(t.contactPct)>0)rings.push(homeRing('Customer contact',m.contactPct,t.contactPct,'percent'));
+  return rings;
+}
+renderHome=function(){
+  currentView='home';title.textContent='Today';setNav('home');
+  const u=activeUser(),p=periodInfo(new Date());
+  if(!u){app.innerHTML='<section class="form-card"><h2>Select a user</h2><p class="muted">Choose your user to see target progress.</p></section>';return;}
+  const daily=targetStatus(u.id),dailyRings=configuredDailyRings(u.id),periodRings=configuredPeriodRings(),streak=userStreak(u.id),nba=nextBestActionForUser();
+  const dailyOverall=daily.keys.length?Math.round(daily.keys.reduce((s,k)=>s+Math.min(100,n(daily.actual[k])/n(daily.targets[k])*100),0)/daily.keys.length):0;
+  const periodTarget=currentPeriodTarget(),m=dashboardMetrics(),periodPairs=[
+    [m.leadValue,n(periodTarget.sales)],[m.leadMargin,n(periodTarget.margin)],[m.leadCount,n(periodTarget.leads)],[m.contactPct,n(periodTarget.contactPct)]
+  ].filter(x=>x[1]>0);
+  const periodOverall=periodPairs.length?Math.round(periodPairs.reduce((s,[a,t])=>s+Math.min(100,n(a)/t*100),0)/periodPairs.length):0;
+
+  app.innerHTML='<div class="simple-home">'+
+    '<section class="simple-home-head"><div><h2>'+esc(u.name)+'</h2><div class="sub">'+esc(p.label)+' · '+fmtShortDate(p.start)+' – '+fmtShortDate(p.end)+'</div></div><span class="user-chip">'+(u.manager?'<span class="manager-star">★</span>':'')+'Today</span></section>'+
+    '<section class="ring-section"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+dailyOverall+'% overall</span></div>'+
+      (dailyRings.length?'<div class="ring-grid">'+dailyRings.join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
+      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div></section>'+
+    '<section class="ring-section"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
+      (periodRings.length?'<div class="ring-grid">'+periodRings.join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set sales, margin, lead and contact targets in Settings.</small></div>')+
+      '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
+    (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
+  '</div>';
+  if(nba){
+    document.getElementById('simpleStart').onclick=()=>openQueue('day');
+    document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
+  }
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
