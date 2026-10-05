@@ -843,6 +843,20 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .lead-call-btn{background:#0f4a43!important;color:#fff!important;border-color:#0f4a43!important}
 @media(max-width:360px){.daily-priority-strip{grid-template-columns:1fr 1fr}.daily-priority-card:first-child{grid-column:1/-1}}
 
+
+/* V14 faster calling workflow */
+.call-action-panel{margin:12px 0 14px;padding:12px;border:1px solid #d7d4cc;border-radius:6px;background:#f7f7f4}
+.call-action-panel>small{display:block;font-size:10px;font-weight:900;letter-spacing:.08em;color:#646363;margin-bottom:8px}
+.call-action-panel .quick-actions{margin:0}
+.call-action-panel .quick-actions button{min-height:52px;border-radius:5px}
+.call-action-panel .quick-actions .good{background:#0f4a43;color:#fff}
+.call-action-panel .quick-actions .warn{background:#ece9df;color:#20201e}
+.call-timer-note{margin:8px 0 0;font-size:11px;color:#646363;text-align:center}
+.customer-detail-toggle{width:100%;margin:10px 0 0;border:1px solid #d7d4cc;border-radius:4px;background:#fff;color:#20201e;padding:10px 12px;font-weight:750;text-align:left}
+.customer-detail-secondary[hidden]{display:none!important}
+.outcome-customer-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f1f1ef;border-radius:4px;padding:10px 11px;margin-bottom:10px}
+.outcome-customer-strip b{font-size:14px}.outcome-customer-strip span{font-size:11px;color:#646363}
+
 </style>
 </head>
 <body>
@@ -3467,6 +3481,58 @@ renderLeads=function(mode='all'){
   });
   document.querySelectorAll('[data-lead-focus]').forEach(b=>b.onclick=()=>setLeadFocus(b.dataset.leadFocus));
   setLeadFocus(activeLeadFocus);
+};
+
+
+/* V14: put the real call actions first and capture call duration automatically. */
+let activeCallStartedAt=0,activeCallCustomerId='';
+const fastCustomerRenderer=renderCustomer;
+renderCustomer=function(msg=''){
+  fastCustomerRenderer(msg);
+  const c=queueSnapshot?.[queueIndex],card=app.querySelector('.customer-card');
+  if(!c||!card)return;
+  const phone=card.querySelector('.phone'),actions=card.querySelector('.quick-actions');
+  if(phone&&phone.tagName==='A'){
+    phone.addEventListener('click',()=>{activeCallStartedAt=Date.now();activeCallCustomerId=String(c.id);});
+  }
+  if(actions&&phone){
+    const panel=document.createElement('div');panel.className='call-action-panel';
+    panel.innerHTML='<small>RECORD CALL OUTCOME</small>';
+    phone.insertAdjacentElement('afterend',panel);panel.append(actions);
+    const timer=document.createElement('div');timer.className='call-timer-note';timer.textContent='Tap the phone number to start automatic call timing.';panel.append(timer);
+  }
+  const facts=[...card.querySelectorAll('.facts')];
+  if(facts.length>1){
+    facts.slice(1).forEach(x=>{x.classList.add('customer-detail-secondary');x.hidden=true;});
+    const toggle=document.createElement('button');toggle.type='button';toggle.className='customer-detail-toggle';toggle.textContent='Show lead history and customer details';
+    facts[0].insertAdjacentElement('afterend',toggle);
+    toggle.onclick=()=>{
+      const hidden=facts[1]?.hidden!==false;
+      facts.slice(1).forEach(x=>x.hidden=!hidden);
+      toggle.textContent=hidden?'Hide lead history and customer details':'Show lead history and customer details';
+    };
+  }
+};
+
+const fastOutcomeRenderer=renderOutcome;
+renderOutcome=function(type,c){
+  fastOutcomeRenderer(type,c);
+  const card=app.querySelector('.form-card');if(!card)return;
+  const heading=card.querySelector('h2');
+  if(heading){
+    const strip=document.createElement('div');strip.className='outcome-customer-strip';
+    strip.innerHTML=`<b>${esc(c.name)}</b><span>Account ${esc(c.id)}</span>`;
+    heading.insertAdjacentElement('afterend',strip);
+  }
+  const duration=document.getElementById('callDuration');
+  if(duration&&activeCallStartedAt&&activeCallCustomerId===String(c.id)&&!duration.value){
+    const mins=Math.max(1,Math.round((Date.now()-activeCallStartedAt)/60000));
+    duration.value=mins;
+    const note=document.createElement('div');note.className='sub';note.style.marginTop='6px';note.textContent='Call duration filled automatically. Adjust it if needed.';
+    duration.insertAdjacentElement('afterend',note);
+  }
+  const save=document.getElementById('saveNext');
+  if(save)save.textContent=queueSnapshot?.length>1?'Save & next customer':'Save call';
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
