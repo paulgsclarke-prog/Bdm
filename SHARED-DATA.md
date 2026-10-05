@@ -1,7 +1,9 @@
-# Shared-data foundation (not activated in the frontend yet)
+# Shared-data integration (activation pending)
 
 This draft adds protected Vercel APIs for the existing single-file BDM frontend.
-The existing index.html is unchanged. It is not yet a working shared-data release.
+The single-file index.html now has gated Clerk sign-in, verified user identity,
+shared reads/writes, explicit initial migration and save/retry/conflict controls.
+BDM_SHARED_ENABLED is off by default; account setup is available at /connect.html.
 
 ## Completed
 
@@ -22,13 +24,14 @@ The existing index.html is unchanged. It is not yet a working shared-data releas
 3. Create the owner's Clerk login, then securely link privateMetadata to the
    existing manager ID (normally U1) and bdmRole=manager. Do not auto-authorise
    the first public sign-up. Staff logins need their own existing IDs and role=staff.
-4. Wire the JavaScript Clerk sign-in component into index.html before loading
-   customer data; replace PIN identity selection with the verified member.
+4. Test the inlined JavaScript Clerk sign-in and shared storage flow in index.html,
+   then set BDM_SHARED_ENABLED=true only once the owner is securely linked.
 5. Download the browser backup, validate it, then upload it through PUT /api/shared
    with revision=0 as the linked manager. Do not erase the browser backup.
-6. Replace browser storage reads/writes with authenticated GET/PUT requests;
-   retain unsaved work on errors, block conflicting saves, and provide an explicit
-   reload after backing up changes. Do not display 'saved' until the server confirms.
+6. Test authenticated GET/PUT requests and migration. Save status remains pending
+   until the server confirms; unsaved work stays in memory and can be downloaded.
+   Conflicting saves are blocked, with explicit backup and reload controls.
+   Shared backup restore is currently disabled pending a reviewed restore flow.
 7. Verify sign-in/sign-out, revocation, two devices, conflict handling, interrupted
    saves, backup retrieval and user target isolation before production activation.
 

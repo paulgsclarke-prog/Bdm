@@ -11,3 +11,4 @@ test('lead updates retain creator credit and cannot delete records',()=>{const l
 test('staff target history remains per-user',()=>{authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:1},U2:{a:2}}},staff);assert.throws(()=>authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:2}}},staff),{status:403});});
 test('duplicate IDs are rejected',()=>assert.throws(()=>validateData({bdm_leads:[{id:'L1'},{id:'L1'}]}),{status:400}));
 test('manager can migrate reports and settings',()=>authoriseWrite({}, {bdm_users:[{id:'U1',manager:true}],bdm_snapshots:[{customers:[]}]},manager));
+test('new calls may be prepended as in the existing app',()=>authoriseWrite({bdm_activity:[{audit:{userId:'U1'}}]},{bdm_activity:[{audit:{userId:'U2'}},{audit:{userId:'U1'}}]},staff));

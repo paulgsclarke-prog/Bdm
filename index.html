@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BDM Starter</title>
   <style>
+[hidden]{display:none!important}
 
 :root{
   --bg:#f1f1ef;
@@ -835,6 +836,53 @@ body{
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script>
+(async function(){
+// Inlined into index.html: the frontend remains a single HTML file.
+const cloud={enabled:false,initialising:true,member:null,data:{},revision:0,pending:false,blocked:false,inFlight:null,timer:null,
+  banner(message){document.getElementById('cloudStatus').textContent=message;},
+  download(data,suffix='backup'){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}));a.href=url;a.download='bdm-'+suffix+'-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},
+  get(key,fallback){if(key==='bdm_active_user')return this.member.userId;if(key==='bdm_manager_session')return null;return Object.hasOwn(this.data,key)?structuredClone(this.data[key]):(['bdm_activity','bdm_leads','bdm_snapshots'].includes(key)?[]:fallback);},
+  set(key,value){if(['bdm_active_user','bdm_manager_session'].includes(key))return;if(this.blocked)throw Error('Shared saving is paused. Download your pending changes before reloading.');this.data[key]=structuredClone(value);this.pending=true;this.banner('Saving changes…');clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush().catch(()=>{}),200);},
+  async request(method='GET',body){const token=await Clerk.session?.getToken();if(!token)throw Error('Your session ended. Download pending changes and sign in again.');const r=await fetch('/api/shared',{method,cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});let json;try{json=await r.json();}catch{throw Error('The server could not confirm your save. Please retry.');}if(!r.ok){const e=Error(json.error||'Shared data request failed');e.status=r.status;throw e;}return json;},
+  async flush(){if(this.inFlight){await this.inFlight;if(this.pending&&!this.blocked)return this.flush();return;}if(!this.pending||this.blocked)return;const data=structuredClone(this.data);this.pending=false;this.inFlight=(async()=>{try{const saved=await this.request('PUT',{revision:this.revision,data});this.revision=saved.revision;this.banner(this.pending?'Saving changes…':'All changes saved');}catch(e){this.pending=true;if(e.status===409||e.status===403||e.status===401)this.blocked=true;this.banner('Changes NOT saved: '+e.message);throw e;}})();try{await this.inFlight;}finally{this.inFlight=null;}if(this.pending&&!this.blocked)return this.flush();},
+  async init(){
+    const shell=document.querySelector('.app-shell');shell.hidden=true;
+    const gate=document.createElement('section');gate.id='cloudGate';gate.style.cssText='max-width:480px;margin:40px auto;padding:24px';gate.innerHTML='<h1 style="color:#0f4a43">BDM</h1><p id="cloudGateStatus" role="status">Connecting…</p><div id="cloudLogin"></div>';document.body.prepend(gate);
+    const status=document.getElementById('cloudGateStatus');
+    try{
+      const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Unable to load BDM. Please refresh.');const config=await r.json();
+      if(!config.sharedEnabled){shell.hidden=false;gate.remove();return true;}
+      this.enabled=true;
+      const host=atob(config.publishableKey.split('_').slice(2).join('_').replace(/-/g,'+').replace(/_/g,'/')).replace(/\$$/,'');if(!/^[a-z0-9.-]+$/i.test(host))throw Error('Login is not configured correctly.');
+      const script=async(src,attrs={})=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.crossOrigin='anonymous';Object.entries(attrs).forEach(([k,v])=>s.setAttribute(k,v));s.onload=resolve;s.onerror=()=>reject(Error('Secure login could not load. Please refresh.'));document.head.append(s);});
+      await script('https://'+host+'/npm/@clerk/ui@1/dist/ui.browser.js');await script('https://'+host+'/npm/@clerk/clerk-js@6/dist/clerk.browser.js',{'data-clerk-publishable-key':config.publishableKey});await Clerk.load({ui:{ClerkUI:window.__internal_ClerkUICtor}});
+      if(!Clerk.user){status.textContent='Sign in to your depot.';Clerk.mountSignIn(document.getElementById('cloudLogin'),{forceRedirectUrl:location.origin+'/'});return false;}
+      const initial=await this.request();this.member=initial.member;this.data=initial.data;this.revision=initial.revision;
+      if(!this.revision){
+        if(!this.member.manager){status.textContent='Your manager needs to import the depot data first.';return false;}
+        status.textContent='Choose the depot data to import. A backup downloads before this device’s data is copied.';
+        const local={};for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(key)){try{local[key]=JSON.parse(localStorage.getItem(key));}catch{}}}
+        const controls=document.createElement('div');controls.innerHTML='<button id="migrateDevice" class="wide-btn">Import this device’s BDM data</button><p>Or import a BDM backup:</p><input id="migrateFile" type="file" accept=".json,application/json">';gate.append(controls);
+        const migrate=async data=>{try{this.download(data,'before-migration');await this.request('PUT',{revision:0,data});location.reload();}catch(e){status.textContent='Import failed: '+e.message;}};
+        document.getElementById('migrateDevice').onclick=()=>migrate(local);
+        document.getElementById('migrateFile').onchange=async e=>{try{const backup=JSON.parse(await e.target.files[0].text());if(backup.app!=='HANDSOME BDM'||backup.version!==1)throw Error('Choose a supported BDM backup.');await migrate(backup.data);}catch(err){status.textContent=err.message;}};
+        return false;
+      }
+      gate.remove();shell.hidden=false;
+      const bar=document.createElement('div');bar.style.cssText='background:#fff;padding:12px;border-bottom:1px solid #deded8;position:sticky;top:0;z-index:100';bar.innerHTML='<span id="cloudStatus" role="status">All changes saved</span><div style="display:flex;gap:8px;margin-top:6px"><button id="cloudRetry">Retry save</button><button id="cloudBackup">Download backup</button><button id="cloudReload">Refresh data</button><button id="cloudSignout">Sign out</button></div>';shell.prepend(bar);
+      document.getElementById('cloudRetry').onclick=()=>this.flush().catch(()=>{});
+      document.getElementById('cloudBackup').onclick=()=>this.download(this.data,this.pending?'unsaved-changes':'backup');
+      document.getElementById('cloudReload').onclick=()=>{if(this.pending||this.inFlight){this.download(this.data,'unsaved-changes');if(!confirm('Your pending changes were downloaded. Reload and use the latest shared data?'))return;}location.reload();};
+      document.getElementById('cloudSignout').onclick=async()=>{if(this.pending||this.inFlight){this.download(this.data,'unsaved-changes');if(!confirm('Some changes are unsaved. A backup was downloaded. Sign out?'))return;}await Clerk.signOut({redirectUrl:location.origin+'/'});};
+      Clerk.addListener(resources=>{if(!resources.session){shell.hidden=true;this.blocked=true;}});
+      window.addEventListener('beforeunload',e=>{if(this.pending||this.inFlight){e.preventDefault();e.returnValue='';}});
+      setInterval(async()=>{if(this.pending||this.inFlight||this.blocked)return;try{const remote=await this.request();if(remote.revision!==this.revision){this.blocked=true;this.banner('New depot updates available. Refresh data before saving.');}}catch(e){if([401,403].includes(e.status)){shell.hidden=true;this.blocked=true;}else this.banner('Connection interrupted. Retry before making changes.');}},30000);
+      return true;
+    }catch(e){status.textContent=e.message;return false;}
+  }
+};
+
+if(!await cloud.init())return;
 
 const FIELD_NAMES = [
   'customer','name','gdprEmail','gdprSms','gdprTel','gdprPost','openYear','recency',
@@ -873,8 +921,8 @@ const demoCustomers = {
 };
 
 const storage = {
-  get(key, fallback){ try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
-  set(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+  get(key, fallback){ if(cloud.enabled)return cloud.get(key,fallback); try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+  set(key, value){ if(cloud.enabled){if(!cloud.initialising)cloud.set(key,value);return;} localStorage.setItem(key, JSON.stringify(value)); }
 };
 
 
@@ -931,6 +979,8 @@ function closePinModal(){
   pendingPinAction=null;
 }
 function requestPin({title='Confirm save',subtitle='Enter your 4 digit PIN',managerOnly=false,onSuccess}){
+  if(cloud.enabled){const user=activeUser();if(cloud.blocked){alert('Refresh shared data before saving. Download any unsaved changes first.');return;}if(!user||(managerOnly&&!cloud.member.manager)){alert('Manager access required.');return;}if(onSuccess)onSuccess(user);return;}
+
   const available=users.filter(u=>u.active!==false && (!managerOnly || u.manager));
   if(!available.length){
     alert(managerOnly ? 'No active manager user is set up.' : 'No active users are set up.');
@@ -987,7 +1037,7 @@ leads = leads.map(l=>({
   ownerId:l.ownerId || users[0]?.id || null,
   ownerName:l.ownerName || users[0]?.name || 'Unassigned'
 }));
-if(!leads.length){
+if(!leads.length && !cloud.enabled){
   leads = [
     {id:'LDEMO1',createdAt:'2026-10-02T16:18:00',customer:'Bluebird Interiors',customerId:'A12661',category:'Kitchen',quoteNo:'458271',details:'Kitchen + appliances',value:8450,margin:3126,requiredByDate:'2026-10-12',followUpDate:'2026-10-05',status:'open',notes:''}
   ];
@@ -3097,7 +3147,7 @@ async function validatedReport(kind,file){
   }catch(e){status.innerHTML=`<div class="import-status error">${esc(e.message)}</div>`;}
 }
 const BACKUP_TYPES={bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
-function makeBackup(){const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(k))data[k]=JSON.parse(localStorage.getItem(k));}return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data};}
+function makeBackup(){if(cloud.enabled)return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data:structuredClone(cloud.data)};const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(k))data[k]=JSON.parse(localStorage.getItem(k));}return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data};}
 function validateBackup(b){
   if(b?.app!=='HANDSOME BDM'||b.version!==1||!b.data||Array.isArray(b.data))throw new Error('This is not a supported BDM backup.');
   if(!Array.isArray(b.data.bdm_users)||!b.data.bdm_users.some(u=>u.manager&&u.active!==false&&/^[a-f0-9]{64}$/i.test(u.pinHash||'')))throw new Error('Backup needs an active manager with a valid PIN.');
@@ -3110,6 +3160,7 @@ function downloadBackup(b,suffix=''){const url=URL.createObjectURL(new Blob([JSO
 function exportBackup(){downloadBackup(makeBackup());document.getElementById('backupStatus').textContent='Backup download started. Keep it private: it contains your customer data and PIN hashes.';}
 async function restoreBackup(file){
   const status=document.getElementById('backupStatus');
+  if(cloud.enabled){status.textContent='Shared restore must be reviewed before replacing depot data. Your backup is ready for migration.';return;}
   try{const b=validateBackup(JSON.parse(await file.text()));if(!confirm('Replace this browser’s BDM data with the backup from '+b.exportedAt+'? A copy of your current data will download first.'))return;const previous=makeBackup();downloadBackup(previous,'-before-restore');
     try{Object.keys(previous.data).forEach(k=>localStorage.removeItem(k));Object.entries(b.data).forEach(([k,v])=>storage.set(k,v));localStorage.removeItem('bdm_active_user');}catch(e){Object.keys(b.data).forEach(k=>localStorage.removeItem(k));Object.entries(previous.data).forEach(([k,v])=>storage.set(k,v));throw e;}
     location.reload();
@@ -3118,8 +3169,11 @@ async function restoreBackup(file){
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
 document.getElementById('settingsBtn').onclick=renderSettings;
+syncManagerSession();
 renderHome();
-
+cloud.initialising=false;
+})();
 </script>
 </body>
 </html>
+

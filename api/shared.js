@@ -1,9 +1,11 @@
 import { authenticate,database,endpoint } from '../lib/server.mjs';
 import { HttpError,authoriseWrite,validateData } from '../lib/policy.mjs';
+import { ensureSchema } from '../lib/schema.mjs';
 
 export default endpoint(async(req,res)=>{
   if(!['GET','PUT'].includes(req.method))return res.status(405).json({error:'Method not allowed'});
   const member=await authenticate(req),sql=database();
+  if(member.manager)await ensureSchema(sql);
   const [current]=await sql`SELECT revision,data FROM bdm_shared_state WHERE id=1`;
   if(!current)throw new HttpError(503,'Database schema has not been installed');
   const user=current.data.bdm_users?.find(u=>u.id===member.userId);
