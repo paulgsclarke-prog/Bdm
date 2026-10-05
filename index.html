@@ -914,6 +914,21 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .survey-card{border:1px solid #d7d4cc;border-left:4px solid #0f4a43;border-radius:6px;background:#fff;padding:13px;margin-bottom:10px}
 .survey-card b{display:block}.survey-card small{display:block;color:#646363;margin-top:4px}
 
+
+/* V20 mobile navigation polish */
+.queue-top-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.queue-exit{border:1px solid #d7d4cc;border-radius:4px;background:#fff;color:#20201e;padding:9px 11px;font-weight:800;font-size:12px}
+.queue-position{font-size:12px;color:#646363}
+@media(max-width:430px){
+  button,.filter-btn,.nav-btn,.icon-btn{touch-action:manipulation}
+  .filter-btn{min-height:42px}
+  .quick-actions button{min-height:54px}
+  .wide-btn{min-height:50px}
+  .bottom-nav .nav-btn{min-height:52px}
+  .bottom-nav .nav-btn span{font-size:21px}
+  .bottom-nav .nav-btn small{font-size:10px}
+}
+
 </style>
 </head>
 <body>
@@ -3847,6 +3862,50 @@ renderStats=function(){
   const byUser={};surveys.forEach(a=>{const name=a.audit?.userName||'Unknown';byUser[name]=(byUser[name]||0)+1;});
   survey.innerHTML=`<div class="stat-section-title">Survey performance</div><div class="survey-card"><b>${surveys.length} surveys booked this period</b><small>${surveyOpportunityLeads().length} current Kitchen opportunities still available to work</small><button class="wide-btn" id="statsSurveyQueue">Work survey opportunities</button></div><div class="settings-card">${Object.entries(byUser).map(([name,count])=>`<div class="row" style="padding:7px 0"><span>${esc(name)}</span><b>${count}</b></div>`).join('')||'<span class="muted">No surveys booked yet.</span>'}</div>`;
   app.append(survey);document.getElementById('statsSurveyQueue').onclick=openSurveyQueue;
+};
+
+
+/* V20: predictable mobile navigation and queue exits. */
+function queueBackDestination(){
+  if(queueKey==='day')return {label:'Back to Today',action:renderHome};
+  if(queueKey==='survey')return {label:'Back to Calls',action:renderCalls};
+  if(queueKey==='changes')return {label:'Back to Reports',action:renderReports};
+  if(queueKey==='search')return {label:'Back to search',action:()=>renderCustomerSearch(lastCustomerQuery)};
+  return {label:'Back to Calls',action:renderCalls};
+}
+const polishedCustomerRenderer=renderCustomer;
+renderCustomer=function(msg=''){
+  polishedCustomerRenderer(msg);
+  const back=queueBackDestination();
+  const completed=document.getElementById('backGroups');
+  if(completed){completed.textContent=back.label;completed.onclick=back.action;}
+  const c=queueSnapshot?.[queueIndex],card=app.querySelector('.customer-card');
+  if(c&&card){
+    const firstRow=app.querySelector('main > .row, #app > .row');
+    if(firstRow&&!app.querySelector('.queue-top-actions')){
+      const top=document.createElement('div');top.className='queue-top-actions';
+      top.innerHTML=`<span class="queue-position">Customer ${queueIndex+1} of ${queueSnapshot?.length||1}</span><button class="queue-exit" id="queueExit">${esc(back.label)}</button>`;
+      firstRow.replaceWith(top);document.getElementById('queueExit').onclick=back.action;
+    }
+    if(queueKey==='survey')title.textContent='Survey opportunities';
+    if(queueKey==='changes')title.textContent='Database changes';
+  }
+  window.scrollTo({top:0,left:0,behavior:'auto'});
+};
+const polishedOutcomeRenderer=renderOutcome;
+renderOutcome=function(type,c){
+  polishedOutcomeRenderer(type,c);
+  window.scrollTo({top:0,left:0,behavior:'auto'});
+};
+const polishedLeadEditor=renderLeadEditor;
+renderLeadEditor=function(id){
+  polishedLeadEditor(id);
+  window.scrollTo({top:0,left:0,behavior:'auto'});
+};
+const polishedSalesLeadForm=renderSalesLeadForm;
+renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
+  polishedSalesLeadForm(existing,customer,returnTo);
+  window.scrollTo({top:0,left:0,behavior:'auto'});
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
