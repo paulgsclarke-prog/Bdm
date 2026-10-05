@@ -828,6 +828,21 @@ html,body{max-width:100%;overflow-x:clip}
 .due-preview .dashboard-title{margin:0}.due-preview .filter-btn{min-height:44px}
 @media(max-width:380px){.topbar{padding-inline:12px}.brand-word{font-size:18px}.eyebrow{font-size:10px}.header-tools .icon-btn{width:40px;height:44px}.topbar h1{font-size:26px}}
 
+
+/* V13 daily workflow hardening */
+#bottomNav{display:grid!important;visibility:visible!important}
+body.manager-session #bottomNav .manager-only{display:block!important}
+.daily-priority-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 2px}
+.daily-priority-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;color:#20201e;padding:11px 9px;text-align:left;min-width:0}
+.daily-priority-card b{display:block;font-size:22px;line-height:1;margin-bottom:6px}
+.daily-priority-card span{display:block;font-size:12px;font-weight:800}
+.daily-priority-card small{display:block;color:#646363;font-size:10px;margin-top:3px;line-height:1.25}
+.lead-focus-bar{display:flex;gap:7px;overflow:auto;margin:0 0 12px;padding-bottom:3px}
+.lead-focus-bar .filter-btn{flex:0 0 auto}
+.lead-focus-count{font-size:11px;opacity:.72;margin-left:4px}
+.lead-call-btn{background:#0f4a43!important;color:#fff!important;border-color:#0f4a43!important}
+@media(max-width:360px){.daily-priority-strip{grid-template-columns:1fr 1fr}.daily-priority-card:first-child{grid-column:1/-1}}
+
 </style>
 </head>
 <body>
@@ -3368,6 +3383,91 @@ function renderStaffLogins(){
     }catch(error){status.textContent=error.message;button.disabled=false;}
   };
 }
+
+
+/* V13: keep navigation stable and make Today/Leads more action-led. */
+const stableSetNav=setNav;
+setNav=function(view){
+  stableSetNav(view);
+  const nav=document.getElementById('bottomNav');
+  if(nav){nav.hidden=false;nav.style.display='grid';nav.style.visibility='visible';}
+  const managerButton=nav?.querySelector('[data-view="manager"]');
+  if(managerButton){
+    const show=Boolean(activeUser()?.manager&&(!cloud.enabled||cloud.member?.manager));
+    managerButton.hidden=!show;
+    managerButton.style.display=show?'block':'none';
+  }
+};
+
+const priorityHomeRenderer=renderHome;
+renderHome=function(){
+  priorityHomeRenderer();
+  const u=activeUser(); if(!u)return;
+  const due=ownDue(u.id);
+  const queue=dailyQueue();
+  const leadDue=leads.filter(l=>String(l.ownerId||'')===String(u.id)&&!leadIsClosed(l)&&l.followUpDate&&l.followUpDate<=isoToday());
+  const overdue=due.filter(f=>f.date<isoToday()).length;
+  const strip=document.createElement('section');
+  strip.className='daily-priority-strip';
+  strip.innerHTML=`
+    <button class="daily-priority-card" id="priorityCalls"><b>${queue.length}</b><span>Work queue</span><small>Next-best customer actions</small></button>
+    <button class="daily-priority-card" id="priorityFollowups"><b>${due.length}</b><span>Follow-ups</span><small>${overdue} overdue</small></button>
+    <button class="daily-priority-card" id="priorityLeads"><b>${leadDue.length}</b><span>Lead actions</span><small>Due or overdue today</small></button>`;
+  const start=app.querySelector('.today-start');
+  if(start)start.insertAdjacentElement('afterend',strip);else app.prepend(strip);
+  document.getElementById('priorityCalls').onclick=()=>openQueue('day');
+  document.getElementById('priorityFollowups').onclick=()=>renderFollowups();
+  document.getElementById('priorityLeads').onclick=()=>{renderLeads('all');setLeadFocus('due');};
+};
+
+let activeLeadFocus='all';
+function setLeadFocus(focus='all'){
+  activeLeadFocus=focus;
+  const today=isoToday();
+  document.querySelectorAll('[data-lead-card]').forEach(card=>{
+    const bucket=card.dataset.leadBucket;
+    const show=focus==='all'||focus===bucket||(focus==='due'&&(bucket==='today'||bucket==='overdue'));
+    card.hidden=!show;
+  });
+  document.querySelectorAll('[data-lead-focus]').forEach(b=>b.classList.toggle('active',b.dataset.leadFocus===focus));
+}
+const focusLeadRenderer=renderLeads;
+renderLeads=function(mode='all'){
+  focusLeadRenderer(mode);
+  if(mode!=='all')return;
+  const today=isoToday();
+  const sorted=[...leads].sort((a,b)=>{
+    const pa=leadStatusBucket(a),pb=leadStatusBucket(b),pr={overdue:0,today:1,open:2,won:3,lost:4};
+    if(pr[pa]!==pr[pb])return pr[pa]-pr[pb];
+    return (a.requiredByDate||'9999-12-31').localeCompare(b.requiredByDate||'9999-12-31');
+  });
+  const counts={all:sorted.length,due:0,overdue:0,today:0,open:0,won:0,lost:0};
+  sorted.forEach(l=>{const b=leadStatusBucket(l);counts[b]=(counts[b]||0)+1;if(b==='today'||b==='overdue')counts.due++;});
+  const firstToolbar=app.querySelector('.toolbar');
+  if(firstToolbar){
+    const focus=document.createElement('div');focus.className='lead-focus-bar';
+    focus.innerHTML=[
+      ['all','All'],['due','Due'],['overdue','Overdue'],['today','Today'],['open','Open'],['won','Won'],['lost','Lost']
+    ].map(([key,label])=>`<button class="filter-btn" data-lead-focus="${key}">${label}<span class="lead-focus-count">${counts[key]||0}</span></button>`).join('');
+    firstToolbar.insertAdjacentElement('afterend',focus);
+  }
+  const cards=[...app.querySelectorAll('.list > .history-card')];
+  cards.forEach((card,i)=>{
+    const lead=sorted[i];if(!lead)return;
+    const bucket=leadStatusBucket(lead);
+    card.dataset.leadCard=lead.id;card.dataset.leadBucket=bucket;
+    if(!leadIsClosed(lead)){
+      const toolbar=card.querySelector('.toolbar');
+      if(toolbar&&!toolbar.querySelector('.lead-call-btn')){
+        const call=document.createElement('button');call.className='filter-btn lead-call-btn';call.textContent='Call customer';
+        call.onclick=()=>openFollowupCall({customerId:lead.customerId,customer:lead.customer,reason:lead.nextActionReason||lead.details||'Lead follow-up',ownerId:lead.ownerId});
+        toolbar.prepend(call);
+      }
+    }
+  });
+  document.querySelectorAll('[data-lead-focus]').forEach(b=>b.onclick=()=>setLeadFocus(b.dataset.leadFocus));
+  setLeadFocus(activeLeadFocus);
+};
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
