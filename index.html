@@ -895,6 +895,16 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .change-delta{font-weight:900}.change-delta.up{color:#246243}.change-delta.down{color:#a02d34}
 @media(max-width:360px){.change-grid{grid-template-columns:1fr}}
 
+
+/* V18 target achievement history */
+.target-complete-banner{border:1px solid #b7d0ca;border-left:5px solid #0f4a43;border-radius:6px;background:#eef5f3;padding:12px 14px;margin-top:10px}
+.target-complete-banner b{display:block}.target-complete-banner small{display:block;color:#49635d;margin-top:4px}
+.target-history-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #e4e2dc}
+.target-history-row:last-child{border-bottom:0}
+.target-history-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e7e7e2;font-weight:900}
+.target-history-dot.hit{background:#dfeee9;color:#0f4a43}
+.target-history-row small{display:block;color:#646363;margin-top:3px}
+
 </style>
 </head>
 <body>
@@ -3735,6 +3745,40 @@ renderReports=function(){
     band:()=>renderDatabaseChangeList('Inactivity band changes',changes.bandChanges,'Contact the customer because their trading recency has changed',c=>`<span class="badge">${esc(c.oldBand)} → ${esc(c.newBand)}</span>`)
   };
   document.querySelectorAll('[data-db-change]').forEach(b=>b.onclick=map[b.dataset.dbChange]);
+};
+
+
+/* V18: visible target-hit feedback and working-day history. */
+function targetHistoryRows(userId,limit=30){
+  const hist=targetHistory[userId]||{};
+  return Object.values(hist).filter(r=>r?.date).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,limit);
+}
+function renderTargetHistory(userId=activeUserId){
+  const user=users.find(u=>u.id===userId)||activeUser();if(!user)return renderHome();
+  currentView='targets';title.textContent='Target history';setNav('');
+  const rows=targetHistoryRows(user.id,60),st=userStreak(user.id);
+  app.innerHTML=`<section class="form-card"><div class="row"><div><h2>${esc(user.name)}</h2><p class="sub">Daily target history · Monday to Friday streaks</p></div><span class="badge green">${st.current} day streak</span></div><div class="manager-action-row"><button id="targetHistoryBack">Back</button><button class="primary" id="targetHistoryToday">Today</button></div></section><section class="form-card"><div class="row"><b>Best streak</b><span class="metric">${st.best}</span></div>${rows.map(r=>{const keys=Object.keys(r.targets||{}).filter(k=>n(r.targets[k])>0);const summary=keys.map(k=>`${k} ${n(r.actual?.[k])}/${n(r.targets?.[k])}`).join(' · ');return `<div class="target-history-row"><span class="target-history-dot ${r.complete?'hit':''}">${r.complete?'✓':'·'}</span><div><b>${esc(r.date)}</b><small>${esc(summary||'No enabled targets')}</small></div><span class="badge ${r.complete?'green':''}">${r.complete?'Hit':'Not hit'}</span></div>`}).join('')||'<p class="muted">No target history recorded yet.</p>'}</section>`;
+  document.getElementById('targetHistoryBack').onclick=activeUser()?.manager&&user.id!==activeUserId?()=>renderManagerStaff(user.id):renderHome;
+  document.getElementById('targetHistoryToday').onclick=renderHome;
+}
+const targetHomeRenderer=renderHome;
+renderHome=function(){
+  targetHomeRenderer();
+  const u=activeUser();if(!u)return;
+  const s=targetStatus(u.id),st=userStreak(u.id);
+  const targetBlock=[...app.querySelectorAll('.dashboard-block')].find(b=>b.querySelector('.dashboard-title')?.textContent==='Today’s targets');
+  if(targetBlock){
+    const button=document.createElement('button');button.className='filter-btn';button.textContent='View target history';button.style.marginTop='9px';button.onclick=()=>renderTargetHistory(u.id);targetBlock.append(button);
+    if(s.complete){
+      const banner=document.createElement('div');banner.className='target-complete-banner';banner.innerHTML=`<b>Today’s targets complete</b><small>Working-day streak: ${st.current} · Best streak: ${st.best}</small>`;targetBlock.insertAdjacentElement('afterend',banner);
+    }
+  }
+};
+const targetManagerStaffRenderer=renderManagerStaff;
+renderManagerStaff=function(userId){
+  targetManagerStaffRenderer(userId);
+  const first=app.querySelector('.form-card');if(!first)return;
+  const button=document.createElement('button');button.className='wide-btn secondary';button.textContent='View target history';button.onclick=()=>renderTargetHistory(userId);first.append(button);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
