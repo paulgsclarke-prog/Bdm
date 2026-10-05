@@ -857,6 +857,20 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .outcome-customer-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f1f1ef;border-radius:4px;padding:10px 11px;margin-bottom:10px}
 .outcome-customer-strip b{font-size:14px}.outcome-customer-strip span{font-size:11px;color:#646363}
 
+
+/* V15 actionable manager dashboard */
+.manager-action-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+.manager-action-row button{border:1px solid #d7d4cc;border-radius:4px;background:#fff;color:#20201e;padding:10px 8px;font-weight:800;font-size:12px}
+.manager-action-row button.primary{background:#0f4a43;color:#fff;border-color:#0f4a43}
+.manager-attention{display:grid;gap:8px}
+.manager-attention-card{border:1px solid #d7d4cc;border-left:4px solid #b31f28;border-radius:5px;background:#fff;padding:12px}
+.manager-attention-card.warning{border-left-color:#b78625}
+.manager-attention-card .row{align-items:flex-start}
+.manager-attention-card b{display:block}.manager-attention-card small{display:block;color:#646363;margin-top:3px;line-height:1.4}
+.manager-staff-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.manager-staff-head button{border:0;background:#edf2f0;border-radius:4px;padding:8px 10px;font-weight:800}
+.manager-lead-list .history-card{padding:13px}
+
 </style>
 </head>
 <body>
@@ -3533,6 +3547,63 @@ renderOutcome=function(type,c){
   }
   const save=document.getElementById('saveNext');
   if(save)save.textContent=queueSnapshot?.length>1?'Save & next customer':'Save call';
+};
+
+
+/* V15: manager drill-downs and one-tap intervention actions. */
+function managerOpenLeadList(titleText,list,userId=null){
+  currentView='manager';title.textContent=titleText;setNav('manager');
+  app.innerHTML=`<section class="form-card"><div class="manager-staff-head"><div><h2>${esc(titleText)}</h2><p class="sub">${list.length} lead${list.length===1?'':'s'} requiring review</p></div><button id="managerListBack">Back</button></div></section>
+  <section class="list manager-lead-list">${list.map(l=>`<div class="history-card"><div class="row"><div><b>${esc(l.customer)}</b><div class="sub">${esc(l.ownerName||'Unassigned')} · ${esc(l.category||'Other')}</div></div><span class="badge ${l.followUpDate&&l.followUpDate<isoToday()?'overdue':'today'}">${esc(l.followUpDate||normalizeStage(l))}</span></div><p class="sub">${money(l.value)} · ${money(l.margin)} margin · ${esc(l.nextActionReason||l.details||'No next action recorded')}</p><div class="manager-action-row"><button class="primary" data-manager-call="${esc(l.id)}">Call customer</button><button data-manager-edit="${esc(l.id)}">Update lead</button></div></div>`).join('')||'<div class="history-card">No leads in this view.</div>'}</section>`;
+  document.getElementById('managerListBack').onclick=userId?()=>renderManagerStaff(userId):renderManager;
+  document.querySelectorAll('[data-manager-edit]').forEach(b=>b.onclick=()=>renderLeadEditor(b.dataset.managerEdit));
+  document.querySelectorAll('[data-manager-call]').forEach(b=>b.onclick=()=>{const l=leads.find(x=>x.id===b.dataset.managerCall);if(l)openFollowupCall({customerId:l.customerId,customer:l.customer,reason:l.nextActionReason||l.details||'Lead follow-up',ownerId:l.ownerId});});
+}
+function renderManagerStaff(userId){
+  const user=users.find(u=>u.id===userId);if(!user)return renderManager();
+  currentView='manager';title.textContent=user.name;setNav('manager');
+  const today=isoToday(),owned=leads.filter(l=>l.ownerId===userId),open=owned.filter(l=>!leadIsClosed(l)),overdue=open.filter(l=>l.followUpDate&&l.followUpDate<today),due=open.filter(l=>l.followUpDate===today);
+  const m=todaysUserMetrics(userId),t=dailyTargetFor(userId).targets,st=userStreak(userId);
+  const value=open.reduce((s,l)=>s+n(l.value),0),margin=open.reduce((s,l)=>s+n(l.margin),0);
+  app.innerHTML=`<section class="form-card"><div class="manager-staff-head"><div><h2>${esc(user.name)}</h2><p class="sub">Daily activity, pipeline and follow-ups</p></div><button id="managerStaffBack">Manager</button></div></section>
+  <section class="kpi-grid">
+    <div class="kpi-card"><span class="kpi-value">${m.calls}</span><span class="kpi-label">Calls today</span><span class="kpi-sub">Target ${t.calls}</span></div>
+    <div class="kpi-card"><span class="kpi-value">${m.conversations}</span><span class="kpi-label">Conversations</span><span class="kpi-sub">Target ${t.conversations}</span></div>
+    <div class="kpi-card"><span class="kpi-value">${money(value)}</span><span class="kpi-label">Open pipeline</span><span class="kpi-sub">${open.length} leads</span></div>
+    <div class="kpi-card"><span class="kpi-value">${money(margin)}</span><span class="kpi-label">Pipeline margin</span><span class="kpi-sub">${value?(margin/value*100).toFixed(1):'0.0'}%</span></div>
+  </section>
+  <section class="form-card"><div class="row"><div><b>Daily streak</b><div class="sub">Working days target achieved</div></div><span class="badge">${st.current} day${st.current===1?'':'s'}</span></div><div class="manager-action-row"><button class="primary" id="staffOverdue">${overdue.length} overdue</button><button id="staffDue">${due.length} due today</button><button id="staffAllLeads">${open.length} open leads</button><button id="staffFollowups">All follow-ups</button></div></section>
+  <section class="list">${open.slice(0,8).map(l=>`<div class="history-card"><div class="row"><b>${esc(l.customer)}</b><span class="badge ${l.followUpDate&&l.followUpDate<today?'overdue':l.followUpDate===today?'today':'open'}">${esc(l.followUpDate||normalizeStage(l))}</span></div><p class="sub">${money(l.value)} · ${esc(l.nextActionReason||l.details||'No next action recorded')}</p><button class="wide-btn secondary" data-staff-lead="${esc(l.id)}">Review lead</button></div>`).join('')||'<div class="history-card">No open leads.</div>'}</section>`;
+  document.getElementById('managerStaffBack').onclick=renderManager;
+  document.getElementById('staffOverdue').onclick=()=>managerOpenLeadList(user.name+' overdue leads',overdue,userId);
+  document.getElementById('staffDue').onclick=()=>managerOpenLeadList(user.name+' due today',due,userId);
+  document.getElementById('staffAllLeads').onclick=()=>managerOpenLeadList(user.name+' open leads',open,userId);
+  document.getElementById('staffFollowups').onclick=()=>renderFollowups(userId,true);
+  document.querySelectorAll('[data-staff-lead]').forEach(b=>b.onclick=()=>renderLeadEditor(b.dataset.staffLead));
+}
+const actionableManagerRenderer=renderManager;
+renderManager=function(){
+  actionableManagerRenderer();if(!activeUser()?.manager)return;
+  const today=isoToday(),active=users.filter(u=>u.active!==false);
+  const overdue=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate&&l.followUpDate<today);
+  const due=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate===today);
+  const stale=leads.filter(l=>!leadIsClosed(l)&&leadAgeDays(l)>28);
+  const missing=leads.filter(l=>!leadIsClosed(l)&&!l.followUpDate);
+  const summary=document.createElement('section');summary.className='form-card';
+  summary.innerHTML=`<h2>Needs attention</h2><p class="sub">Tap straight into the work that needs intervention.</p><div class="manager-attention">
+    <button class="manager-attention-card" id="mgrOverdue"><div class="row"><div><b>Overdue leads</b><small>Past their next action date</small></div><span class="badge overdue">${overdue.length}</span></div></button>
+    <button class="manager-attention-card warning" id="mgrDue"><div class="row"><div><b>Due today</b><small>Lead follow-ups due today</small></div><span class="badge today">${due.length}</span></div></button>
+    <button class="manager-attention-card warning" id="mgrStale"><div class="row"><div><b>29+ day leads</b><small>Old open opportunities needing review</small></div><span class="badge">${stale.length}</span></div></button>
+    <button class="manager-attention-card" id="mgrMissing"><div class="row"><div><b>No follow-up date</b><small>Open leads without a next action date</small></div><span class="badge">${missing.length}</span></div></button>
+  </div></section>`;
+  app.prepend(summary);
+  document.getElementById('mgrOverdue').onclick=()=>managerOpenLeadList('Overdue leads',overdue);
+  document.getElementById('mgrDue').onclick=()=>managerOpenLeadList('Leads due today',due);
+  document.getElementById('mgrStale').onclick=()=>managerOpenLeadList('Leads 29+ days old',stale);
+  document.getElementById('mgrMissing').onclick=()=>managerOpenLeadList('Leads with no follow-up date',missing);
+  const staffCards=[...app.querySelectorAll('.manager-user-card')];
+  staffCards.forEach((card,i)=>{const user=active[i];if(!user)return;const actions=document.createElement('div');actions.className='manager-action-row';actions.innerHTML=`<button class="primary">Open ${esc(user.name)}</button><button>Follow-ups</button>`;actions.children[0].onclick=()=>renderManagerStaff(user.id);actions.children[1].onclick=()=>renderFollowups(user.id,true);card.append(actions);});
+  app.querySelectorAll('.dashboard-block').forEach(block=>{if(block.querySelector('.dashboard-title')?.textContent==='Overdue leads')block.remove();});
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
