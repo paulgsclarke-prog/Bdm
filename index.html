@@ -959,6 +959,15 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .campaign-actions button{border:1px solid #d7d4cc;border-radius:4px;background:#fff;padding:10px;font-weight:800}
 .campaign-actions .primary{background:#0f4a43;color:#fff;border-color:#0f4a43}
 
+
+/* V24 data integrity and save safety */
+.save-busy{opacity:.65;pointer-events:none}
+.freshness-warning{border:1px solid #e1c987;border-left:4px solid #b78625;border-radius:5px;background:#fbf7e9;padding:11px;margin-top:9px}
+.freshness-good{border:1px solid #b7d0ca;border-left:4px solid #0f4a43;border-radius:5px;background:#eef5f3;padding:11px;margin-top:9px}
+.import-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.import-summary-grid div{background:#fff;border:1px solid #dedbd3;border-radius:5px;padding:10px}
+.import-summary-grid b{display:block;font-size:20px}.import-summary-grid small{display:block;color:#646363;margin-top:3px}
+
 </style>
 </head>
 <body>
@@ -4106,6 +4115,107 @@ renderManager=function(){
   campaignManagerRenderer();if(!activeUser()?.manager)return;
   const first=app.querySelector('.form-card');if(!first)return;
   const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Manage campaigns';btn.onclick=renderCampaignManager;first.append(btn);
+};
+
+
+/* V24: prevent duplicate saves, stale customer snapshots and orphaned follow-ups. */
+function guardButtonOnce(button,label='Saving…'){
+  if(!button||button.dataset.busy==='1')return false;
+  button.dataset.busy='1';button.dataset.originalText=button.textContent;button.textContent=label;button.classList.add('save-busy');button.disabled=true;return true;
+}
+function releaseGuard(button){
+  if(!button)return;button.dataset.busy='0';button.disabled=false;button.classList.remove('save-busy');if(button.dataset.originalText)button.textContent=button.dataset.originalText;
+}
+function closeCustomerFollowups(customerId,leadId,userId){
+  const now=new Date().toISOString();
+  followups.forEach(f=>{if(!f.completedAt&&String(f.customerId)===String(customerId)){f.completedAt=now;f.completedBy=userId;f.closedReason='Lead closed';}});
+  const lead=leads.find(l=>String(l.id)===String(leadId));
+  if(lead){lead.followUpDate='';lead.nextActionReason='';}
+  storage.set('bdm_followups',followups);
+}
+function importChangeSummary(){
+  const c=databaseChanges();if(!c.available)return null;
+  return {newAccounts:c.newAccounts.length,dead:c.dead.length,reactivated:c.reactivated.length,salesDown:c.salesDown.length,salesUp:c.salesUp.length,bandChanges:c.bandChanges.length};
+}
+const integrityImport=validatedReport;
+validatedReport=async function(kind,file){
+  if(kind==='customers'){
+    const date=document.getElementById('snapshotDate')?.value||'';
+    const latest=latestSnapshot();
+    if(latest?.date&&date&&date<=latest.date){
+      const status=document.getElementById('reportStatus')||document.getElementById('importStatus');
+      status.innerHTML='<div class="import-status error">Customer snapshot date must be later than the latest saved snapshot ('+esc(latest.date)+').</div>';
+      return;
+    }
+  }
+  const before=snapshots.length;
+  await integrityImport(kind,file);
+  if(kind==='customers'&&snapshots.length>before){
+    const summary=importChangeSummary(),status=document.getElementById('reportStatus')||document.getElementById('importStatus');
+    if(summary&&status){
+      status.insertAdjacentHTML('beforeend',`<div class="import-summary-grid">
+        <div><b>${summary.newAccounts}</b><small>New accounts</small></div>
+        <div><b>${summary.dead}</b><small>Disappeared</small></div>
+        <div><b>${summary.reactivated}</b><small>Reactivated</small></div>
+        <div><b>${summary.salesDown}</b><small>Spend falling</small></div>
+        <div><b>${summary.salesUp}</b><small>Spend growing</small></div>
+        <div><b>${summary.bandChanges}</b><small>Recency-band changes</small></div>
+      </div>`);
+    }
+  }
+};
+const integrityImportRenderer=renderImport;
+renderImport=function(){
+  integrityImportRenderer();
+  const latest=latestSnapshot(),date=document.getElementById('snapshotDate');
+  if(date&&latest?.date){date.min=latest.date;const note=document.createElement('div');note.className='freshness-warning';note.innerHTML='<b>Latest customer snapshot: '+esc(latest.date)+'</b><div class="sub">New customer uploads must use a later snapshot date.</div>';date.parentElement.insertAdjacentElement('afterend',note);}
+  const reportCard=[...app.querySelectorAll('.form-card')].find(c=>c.querySelector('h2')?.textContent==='Report freshness');
+  if(reportCard){
+    const newest=Object.entries(reportMetadata).filter(([,m])=>m?.uploadedAt).sort((a,b)=>String(b[1].uploadedAt).localeCompare(String(a[1].uploadedAt)))[0];
+    if(newest){const ageDays=Math.floor((Date.now()-new Date(newest[1].uploadedAt).getTime())/86400000);const note=document.createElement('div');note.className=ageDays>7?'freshness-warning':'freshness-good';note.innerHTML='<b>Newest dataset uploaded '+ageDays+' day'+(ageDays===1?'':'s')+' ago</b><div class="sub">'+esc(newest[0])+' · '+esc(newest[1].filename)+'</div>';reportCard.prepend(note);}
+  }
+};
+const guardedSalesLeadForm=renderSalesLeadForm;
+renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
+  guardedSalesLeadForm(existing,customer,returnTo);
+  const save=document.getElementById('saveSalesLead');if(!save)return;
+  const original=save.onclick;
+  save.onclick=()=>{
+    if(!guardButtonOnce(save))return;
+    const before=leads.length;
+    try{original();}catch(e){releaseGuard(save);throw e;}
+    setTimeout(()=>{if(document.body.contains(save)&&leads.length===before)releaseGuard(save);},300);
+  };
+};
+const guardedOutcome=renderOutcome;
+renderOutcome=function(type,c){
+  guardedOutcome(type,c);
+  const save=document.getElementById('saveNext');if(!save)return;
+  const original=save.onclick;
+  save.onclick=()=>{
+    if(!guardButtonOnce(save))return;
+    const before=activity.length;
+    try{original();}catch(e){releaseGuard(save);throw e;}
+    setTimeout(()=>{if(document.body.contains(save)&&activity.length===before)releaseGuard(save);},300);
+  };
+};
+const closeAwareSalesLeadForm=renderSalesLeadForm;
+renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
+  closeAwareSalesLeadForm(existing,customer,returnTo);
+  if(!existing)return;
+  const save=document.getElementById('saveSalesLead');if(!save)return;
+  const original=save.onclick;
+  save.onclick=()=>{
+    const stage=document.getElementById('salesStage')?.value;
+    const wasClosed=leadIsClosed(existing);
+    original();
+    if(!wasClosed&&['Won','Lost'].includes(stage)){
+      const check=setInterval(()=>{
+        if(leadIsClosed(existing)){clearInterval(check);closeCustomerFollowups(existing.customerId,existing.id,activeUserId);}
+      },50);
+      setTimeout(()=>clearInterval(check),1500);
+    }
+  };
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
