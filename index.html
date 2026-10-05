@@ -883,6 +883,18 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .loss-reason-row b{font-size:13px}.loss-reason-row span{font-weight:900}
 @media(max-width:430px){.manager-funnel{grid-template-columns:1fr 1fr}}
 
+
+/* V17 database change intelligence */
+.change-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.change-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;color:#20201e;padding:13px;text-align:left;min-width:0}
+.change-card b{display:block;font-size:26px;line-height:1}
+.change-card span{display:block;font-weight:850;font-size:13px;margin-top:7px}
+.change-card small{display:block;color:#646363;font-size:11px;line-height:1.35;margin-top:4px}
+.change-card.alert{border-left:4px solid #b31f28}.change-card.good{border-left:4px solid #0f4a43}.change-card.warn{border-left:4px solid #b78625}
+.change-list-item{border:1px solid #d7d4cc;border-radius:5px;background:#fff;padding:12px;margin-top:8px}
+.change-delta{font-weight:900}.change-delta.up{color:#246243}.change-delta.down{color:#a02d34}
+@media(max-width:360px){.change-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -3649,6 +3661,80 @@ renderManager=function(){
   lossSection.innerHTML=`<h2>Why leads are being lost</h2><p class="sub">All recorded lost leads. This highlights coaching, pricing and follow-up patterns.</p>${entries.map(([reason,count])=>`<div class="loss-reason-row"><b>${esc(reason)}</b><span>${count}</span></div>`).join('')||'<p class="muted">No lost reasons recorded yet.</p>'}`;
   const analytics=[...app.querySelectorAll('.dashboard-block')].find(b=>b.querySelector('.dashboard-title')?.textContent==='Call analytics');
   if(analytics)analytics.insertAdjacentElement('beforebegin',lossSection);else app.append(lossSection);
+};
+
+
+/* V17: compare uploads and turn database changes into callable work. */
+function inactivityBand(rec){
+  rec=n(rec);
+  if(rec>=15)return '15+';
+  if(rec>=12)return '12–14';
+  if(rec>=6)return '6–11';
+  if(rec>=3)return '3–5';
+  if(rec>=1)return '1–2';
+  return 'Current';
+}
+function databaseChanges(){
+  const model=currentCustomerModel();
+  if(!model?.prev)return {available:false,newAccounts:[],dead:[],reactivated:[],salesUp:[],salesDown:[],bandChanges:[]};
+  const prevMap=new Map((model.prev.customers||[]).map(c=>[String(c.customer||'').trim(),c]));
+  const newAccounts=[],reactivated=[],salesUp=[],salesDown=[],bandChanges=[];
+  model.enriched.forEach(c=>{
+    const id=String(c.customer||'').trim(),prev=prevMap.get(id);
+    if(!prev){newAccounts.push(c);return;}
+    const oldSales=n(prev.salesMAT),newSales=n(c.salesMAT),delta=newSales-oldSales;
+    const oldRec=n(prev.recency),newRec=n(c.recency);
+    if(oldRec>=3&&newRec<=1&&(newSales>0||n(c.transactionsMAT)>0))reactivated.push({...c,previous:prev,delta});
+    if(delta>=Math.max(500,oldSales*.15))salesUp.push({...c,previous:prev,delta});
+    if(delta<=-Math.max(500,oldSales*.15))salesDown.push({...c,previous:prev,delta});
+    if(inactivityBand(oldRec)!==inactivityBand(newRec))bandChanges.push({...c,previous:prev,oldBand:inactivityBand(oldRec),newBand:inactivityBand(newRec)});
+  });
+  salesUp.sort((a,b)=>b.delta-a.delta);salesDown.sort((a,b)=>a.delta-b.delta);
+  return {available:true,newAccounts,dead:model.dead||[],reactivated,salesUp,salesDown,bandChanges};
+}
+function databaseChangeCustomer(raw,reason){
+  const id=String(raw.customer??raw.id??'').trim();
+  const current=customerForFollowup({customerId:id,customer:raw.name||id,reason});
+  current.offer=reason;current.pattern='Database change';return current;
+}
+function openDatabaseChangeQueue(list,reason){
+  queueOwnerId=activeUserId;
+  queueSnapshot=list.map(c=>databaseChangeCustomer(c,reason));
+  queueKey='changes';queueIndex=0;renderCustomer();
+}
+function renderDatabaseChangeList(label,list,reason,formatter){
+  currentView='reports';title.textContent=label;setNav('reports');
+  app.innerHTML=`<section class="form-card"><div class="row"><div><h2>${esc(label)}</h2><p class="sub">${list.length} customers from the latest upload comparison.</p></div><button class="filter-btn" id="changeBack">Back</button></div>${list.length?'<button class="wide-btn" id="changeStartCalls">Start calling this list</button>':''}</section><section class="list">${list.map(c=>`<div class="change-list-item"><div class="row"><div><b>${esc(c.name||c.customer)}</b><div class="sub">Account ${esc(c.customer)}</div></div>${formatter?formatter(c):''}</div></div>`).join('')||'<div class="history-card">No customers in this change group.</div>'}</section>`;
+  document.getElementById('changeBack').onclick=renderReports;
+  const start=document.getElementById('changeStartCalls');if(start)start.onclick=()=>openDatabaseChangeQueue(list,reason);
+}
+const intelligentReportsRenderer=renderReports;
+renderReports=function(){
+  intelligentReportsRenderer();
+  const changes=databaseChanges();
+  if(!changes.available){
+    app.insertAdjacentHTML('afterbegin','<section class="form-card"><h2>Database changes</h2><p class="muted">Upload a second customer snapshot to compare accounts and automatically identify changes.</p></section>');
+    return;
+  }
+  const section=document.createElement('section');section.className='form-card';
+  section.innerHTML=`<h2>Changes since last upload</h2><p class="sub">Automatically compares the two latest customer snapshots. Tap a group to review or call it.</p><div class="change-grid">
+    <button class="change-card good" data-db-change="new"><b>${changes.newAccounts.length}</b><span>New accounts</span><small>Present now, not in the previous upload</small></button>
+    <button class="change-card alert" data-db-change="dead"><b>${changes.dead.length}</b><span>Disappeared accounts</span><small>Present previously, missing from latest upload</small></button>
+    <button class="change-card good" data-db-change="reactivated"><b>${changes.reactivated.length}</b><span>Reactivated</span><small>Previously quiet, now trading again</small></button>
+    <button class="change-card warn" data-db-change="down"><b>${changes.salesDown.length}</b><span>Spend falling</span><small>MAT sales down materially since last upload</small></button>
+    <button class="change-card good" data-db-change="up"><b>${changes.salesUp.length}</b><span>Spend growing</span><small>MAT sales up materially since last upload</small></button>
+    <button class="change-card warn" data-db-change="band"><b>${changes.bandChanges.length}</b><span>Inactivity band changed</span><small>Moved between recency/action bands</small></button>
+  </div></section>`;
+  app.prepend(section);
+  const map={
+    new:()=>renderDatabaseChangeList('New accounts',changes.newAccounts,'Welcome the new account, understand their first project and secure first trade'),
+    dead:()=>renderDatabaseChangeList('Disappeared accounts',changes.dead,'Check why the account has disappeared and whether it needs reactivation'),
+    reactivated:()=>renderDatabaseChangeList('Reactivated customers',changes.reactivated,'Thank them for trading again and understand what work is coming next',c=>'<span class="badge green">Reactivated</span>'),
+    down:()=>renderDatabaseChangeList('Customers with falling spend',changes.salesDown,'Understand why spend has fallen and identify work we can win back',c=>`<span class="change-delta down">${money(c.delta)}</span>`),
+    up:()=>renderDatabaseChangeList('Customers with growing spend',changes.salesUp,'Recognise the growth, thank them and identify the next opportunity',c=>`<span class="change-delta up">+${money(c.delta)}</span>`),
+    band:()=>renderDatabaseChangeList('Inactivity band changes',changes.bandChanges,'Contact the customer because their trading recency has changed',c=>`<span class="badge">${esc(c.oldBand)} → ${esc(c.newBand)}</span>`)
+  };
+  document.querySelectorAll('[data-db-change]').forEach(b=>b.onclick=map[b.dataset.dbChange]);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
