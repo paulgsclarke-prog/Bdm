@@ -905,6 +905,15 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .target-history-dot.hit{background:#dfeee9;color:#0f4a43}
 .target-history-row small{display:block;color:#646363;margin-top:3px}
 
+
+/* V19 survey opportunities + workflow performance */
+.workflow-table{width:100%;border-collapse:collapse;font-size:12px}
+.workflow-table th,.workflow-table td{text-align:left;padding:9px 6px;border-bottom:1px solid #e4e2dc}
+.workflow-table th{color:#646363;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.workflow-table td:nth-child(n+2),.workflow-table th:nth-child(n+2){text-align:right}
+.survey-card{border:1px solid #d7d4cc;border-left:4px solid #0f4a43;border-radius:6px;background:#fff;padding:13px;margin-bottom:10px}
+.survey-card b{display:block}.survey-card small{display:block;color:#646363;margin-top:4px}
+
 </style>
 </head>
 <body>
@@ -3779,6 +3788,65 @@ renderManagerStaff=function(userId){
   targetManagerStaffRenderer(userId);
   const first=app.querySelector('.form-card');if(!first)return;
   const button=document.createElement('button');button.className='wide-btn secondary';button.textContent='View target history';button.onclick=()=>renderTargetHistory(userId);first.append(button);
+};
+
+
+/* V19: actionable survey opportunities and workflow performance. */
+function surveyOpportunityLeads(){
+  const period=currentSalesPeriodNumber();
+  const surveyed=new Set(activity.filter(a=>a.surveyBooked&&a.iso&&periodInfo(a.iso).period===period).map(a=>String(a.customerId||'')));
+  return leads.filter(l=>{
+    const stage=normalizeStage(l);
+    return !leadIsClosed(l)&&l.category==='Kitchen'&&['Opportunity','Contacted'].includes(stage)&&!surveyed.has(String(l.customerId));
+  }).sort((a,b)=>leadOpportunityScore(b)-leadOpportunityScore(a));
+}
+function openSurveyQueue(){
+  const list=surveyOpportunityLeads();
+  queueOwnerId=activeUserId;queueKey='survey';queueIndex=0;
+  queueSnapshot=list.map(l=>{
+    const c=customerForFollowup({customerId:l.customerId,customer:l.customer,reason:'Book a kitchen survey / appointment',ownerId:l.ownerId});
+    c.workflow='survey';c.workflowLabel='SURVEY OPPORTUNITY';c.offer='Book a kitchen survey / appointment';c.opportunityScore=leadOpportunityScore(l);
+    return c;
+  });
+  renderCustomer();
+}
+const surveyCallsRenderer=renderCalls;
+renderCalls=function(){
+  surveyCallsRenderer();
+  const list=surveyOpportunityLeads();
+  const grid=app.querySelector('.call-category-grid');
+  if(grid){
+    const button=document.createElement('button');button.className='call-category';
+    button.innerHTML=`<span class="badge green">Survey opportunities</span><span class="count">${list.length}</span><span class="name">Survey opportunities</span><span class="msg">Open Kitchen opportunities without a survey booked this period</span>`;
+    button.onclick=openSurveyQueue;grid.prepend(button);
+  }
+};
+function workflowPerformance(){
+  const period=currentSalesPeriodNumber();
+  const labels={top20:'Top 20',newNurture:'New nurture',oldNurture:'Old nurture',thanks:'Given Thanks',survey:'Survey opportunity',none:'General / period'};
+  const rows={};
+  activity.filter(a=>a.iso&&periodInfo(a.iso).period===period&&['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).forEach(a=>{
+    const key=a.workflow||'none';if(!rows[key])rows[key]={key,label:labels[key]||key,calls:0,conversations:0,leads:0,won:0};
+    rows[key].calls++;if(['Spoke to customer','Quote given'].includes(a.type))rows[key].conversations++;
+  });
+  leads.filter(l=>l.createdAt&&periodInfo(l.createdAt).period===period).forEach(l=>{
+    const source=activity.find(a=>String(a.customerId)===String(l.customerId)&&a.iso&&Math.abs(new Date(a.iso)-new Date(l.createdAt))<86400000);
+    const key=source?.workflow||'none';if(!rows[key])rows[key]={key,label:labels[key]||key,calls:0,conversations:0,leads:0,won:0};
+    rows[key].leads++;if(normalizeStage(l)==='Won')rows[key].won++;
+  });
+  return Object.values(rows).sort((a,b)=>b.leads-a.leads||b.conversations-a.conversations||b.calls-a.calls);
+}
+const workflowStatsRenderer=renderStats;
+renderStats=function(){
+  workflowStatsRenderer();
+  const rows=workflowPerformance(),surveys=activity.filter(a=>a.surveyBooked&&a.iso&&periodInfo(a.iso).period===currentSalesPeriodNumber());
+  const section=document.createElement('section');section.className='stat-section';
+  section.innerHTML=`<div class="stat-section-title">Workflow performance</div><div class="settings-card"><table class="workflow-table"><thead><tr><th>Workflow</th><th>Calls</th><th>Spoke</th><th>Leads</th><th>Won</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.calls}</td><td>${r.conversations}</td><td>${r.leads}</td><td>${r.won}</td></tr>`).join('')||'<tr><td colspan="5">No workflow activity yet.</td></tr>'}</tbody></table></div></section>`;
+  app.append(section);
+  const survey=document.createElement('section');survey.className='stat-section';
+  const byUser={};surveys.forEach(a=>{const name=a.audit?.userName||'Unknown';byUser[name]=(byUser[name]||0)+1;});
+  survey.innerHTML=`<div class="stat-section-title">Survey performance</div><div class="survey-card"><b>${surveys.length} surveys booked this period</b><small>${surveyOpportunityLeads().length} current Kitchen opportunities still available to work</small><button class="wide-btn" id="statsSurveyQueue">Work survey opportunities</button></div><div class="settings-card">${Object.entries(byUser).map(([name,count])=>`<div class="row" style="padding:7px 0"><span>${esc(name)}</span><b>${count}</b></div>`).join('')||'<span class="muted">No surveys booked yet.</span>'}</div>`;
+  app.append(survey);document.getElementById('statsSurveyQueue').onclick=openSurveyQueue;
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
