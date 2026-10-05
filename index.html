@@ -1042,6 +1042,11 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .priority-reason{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .priority-reason span{font-size:10px;font-weight:850;background:#e6efec;color:#365c54;border-radius:999px;padding:5px 7px}
 .priority-score{font-size:12px;font-weight:900;color:#0f4a43}
+/* V36 customer product mix */
+.product-mix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.product-mix-item{border:1px solid #e0ddd6;border-radius:5px;background:#fff;padding:10px}
+.product-mix-item small{display:block;color:#646363}.product-mix-item b{display:block;margin-top:3px}
+.product-mix-item.gap{border-left:4px solid #b78625}
 </style>
 </head>
 <body>
@@ -4557,7 +4562,7 @@ renderHome=function(){
   const c=nba.customer,card=document.createElement('section');card.className='next-action-card';
   card.innerHTML='<small>NEXT BEST ACTION</small><h2>'+esc(c.name)+'</h2><p>'+esc(nba.reason)+'</p><div class="actions"><button class="primary" id="nbaCall">Start call</button><button id="nbaRecord">Customer record</button></div>';
   const banner=app.querySelector('.period-banner');if(banner)banner.insertAdjacentElement('afterend',card);else app.prepend(card);
-  document.getElementById('nbaCall').onclick=()=>{queueOwnerId=activeUserId;queueKey='day';queueIndex=0;queueSnapshot=[c];renderCustomer();};
+  document.getElementById('nbaCall').onclick=()=>openQueue('day');
   document.getElementById('nbaRecord').onclick=()=>renderCustomerRecord(c.id,renderHome);
 };
 
@@ -4875,6 +4880,32 @@ dailyQueue=function(){
   const ranked=rankedActionsForUser(activeUserId).map(x=>map.get(String(x.customerId))||x.customerObj).filter(Boolean);
   const seen=new Set();
   return ranked.filter(c=>{const id=String(c.id);if(seen.has(id))return false;seen.add(id);return true;});
+};
+
+
+/* V36: customer-level product mix and cross-sell gaps. */
+function customerProductMix(raw){
+  if(!raw)return [];
+  return [
+    ['Kitchens',n(raw.kitchenNumberMAT),'count'],
+    ['Appliances',n(raw.appliancesMAT),'money'],
+    ['Worktops',n(raw.worktopsMAT),'money'],
+    ['Sinks',n(raw.sinksMAT),'money'],
+    ['Taps',n(raw.tapsMAT),'money'],
+    ['Doors',n(raw.doorsMAT),'money'],
+    ['Hardware',n(raw.hardwareMAT),'money'],
+    ['Flooring',n(raw.flooringMAT),'number'],
+    ['Joinery',n(raw.joineryMAT),'money']
+  ];
+}
+const productMixCustomerRecord=renderCustomerRecord;
+renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCustomerQuery)){
+  productMixCustomerRecord(customerId,back);
+  const d=customerRecordData(customerId),mix=customerProductMix(d.raw);if(!mix.length)return;
+  const section=document.createElement('section');section.className='form-card customer-record-section';
+  section.innerHTML='<div class="row"><h2>Product mix</h2><span class="badge">MAT</span></div><div class="product-mix-grid">'+mix.map(([label,value,type])=>'<div class="product-mix-item '+(value===0?'gap':'')+'"><small>'+esc(label)+'</small><b>'+(type==='money'?money(value):Number(value).toLocaleString('en-GB'))+'</b>'+(value===0?'<small>Cross-sell opportunity</small>':'')+'</div>').join('')+'</div>';
+  const history=[...app.querySelectorAll('.customer-record-section')].find(x=>x.querySelector('h2')?.textContent==='Account change history');
+  if(history)history.insertAdjacentElement('beforebegin',section);else app.append(section);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
