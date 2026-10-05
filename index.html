@@ -1059,7 +1059,8 @@ function activityDateKey(a){
 }
 
 const SALES_PERIOD_START = new Date(2025,11,29);
-function localDateOnly(value){ if(value instanceof Date)return new Date(value.getFullYear(),value.getMonth(),value.getDate()); if(!value)return null; const parts=String(value).slice(0,10).split('-').map(Number); if(parts.length===3&&parts.every(Number.isFinite))return new Date(parts[0],parts[1]-1,parts[2]); const d=new Date(value); return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function localDateOnly(value){ if(!value)return null; if(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)){const [y,m,d]=value.split('-').map(Number);return new Date(y,m-1,d);}const d=value instanceof Date?value:new Date(value);return Number.isNaN(d.getTime())?null:new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function recordDateKey(value){const date=localDateOnly(value);return date?workingDayKey(date):'';}
 function daysBetween(a,b){ return Math.floor((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000); }
 function periodInfo(value=new Date()){ const d=localDateOnly(value)||localDateOnly(new Date()); const diff=daysBetween(SALES_PERIOD_START,d); if(diff<0)return {period:0,week:0,day:0,label:'Before P1',start:null,end:null}; const pi=Math.floor(diff/28),within=diff%28,week=Math.floor(within/7)+1,day=within%7+1; const start=new Date(SALES_PERIOD_START); start.setDate(start.getDate()+pi*28); const end=new Date(start); end.setDate(end.getDate()+27); return {period:pi+1,week,day,label:`D${day} · W${week} · P${pi+1}`,start,end}; }
 function fmtShortDate(d){ return d?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—'; }
@@ -1092,7 +1093,7 @@ function dashboardMetrics(){
   const startISO=`${p.start.getFullYear()}-${String(p.start.getMonth()+1).padStart(2,'0')}-${String(p.start.getDate()).padStart(2,'0')}`;
   const endISO=`${p.end.getFullYear()}-${String(p.end.getMonth()+1).padStart(2,'0')}-${String(p.end.getDate()).padStart(2,'0')}`;
   const periodActs=activity.filter(a=>{
-    const iso=(a.iso||'').slice(0,10);
+    const iso=recordDateKey(a.iso);
     return iso && iso>=startISO && iso<=endISO;
   });
   const spoken=periodActs.filter(a=>a.type==='Spoke to customer');
@@ -1116,9 +1117,16 @@ function dashboardMetrics(){
   const voicemail=periodActs.filter(a=>a.type==='Voicemail left').length;
   const conversations=periodActs.filter(a=>a.type==='Spoke to customer' || a.type==='Quote given').length;
   const successRate=callsMade ? conversations/callsMade*100 : 0;
-  const leadStrike=conversations ? salesPeriodLeads.length/conversations*100 : 0;
-  const converted=salesPeriodLeads.filter(l=>l.status==='won');
-  const conversionRate=salesPeriodLeads.length ? converted.length/salesPeriodLeads.length*100 : 0;
+  const generatedPeriodLeads=leads.filter(l=>{const date=recordDateKey(l.createdAt||l.audit?.iso);return date&&date>=startISO&&date<=endISO;});
+  const generatedLeadValue=generatedPeriodLeads.reduce((sum,l)=>sum+n(l.value),0);
+  const generatedLeadMargin=generatedPeriodLeads.reduce((sum,l)=>sum+n(l.margin),0);
+  const generatedMarginPct=generatedLeadValue?generatedLeadMargin/generatedLeadValue*100:0;
+  const spokenCustomerIds=new Set(periodActs.filter(a=>['Spoke to customer','Quote given'].includes(a.type)).map(a=>String(a.customerId||a.customer)));
+  const leadCustomerIds=new Set(generatedPeriodLeads.map(l=>String(l.customerId||l.customer)));
+  const leadStrike=spokenCustomerIds.size?[...spokenCustomerIds].filter(id=>leadCustomerIds.has(id)).length/spokenCustomerIds.size*100:0;
+  const converted=generatedPeriodLeads.filter(l=>l.status==='won');
+  const conversionRate=generatedPeriodLeads.length ? converted.length/generatedPeriodLeads.length*100 : 0;
+  const dueTasks=followups.filter(f=>!f.completedAt&&f.date&&f.date<=today);
 
   const now=new Date();
   const weekStart=new Date(p.start);
@@ -1127,7 +1135,7 @@ function dashboardMetrics(){
   const weekStartISO=`${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`;
   const weekEndISO=`${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`;
   const weekLeads=leads.filter(l=>{
-    const created=(l.createdAt||'').slice(0,10);
+    const created=recordDateKey(l.createdAt||l.audit?.iso);
     return created && created>=weekStartISO && created<=weekEndISO;
   });
   const weekLeadValue=weekLeads.reduce((s,l)=>s+n(l.value),0);
@@ -1139,6 +1147,8 @@ function dashboardMetrics(){
     callsMade, voicemail, conversations, successRate,
     leadStrike, conversionRate,
     leadCount:salesPeriodLeads.length, leadValue, leadMargin, marginPct,
+    generatedLeadCount:generatedPeriodLeads.length,generatedLeadValue,generatedLeadMargin,generatedMarginPct,
+    taskFollowToday:dueTasks.filter(f=>f.date===today).length,taskOverdue:dueTasks.filter(f=>f.date<today).length,
     weekLeadCount:weekLeads.length, weekLeadValue, weekLeadMargin,
     followToday:followToday.length, overdue:overdue.length
   };
@@ -1274,7 +1284,7 @@ async function handleYtdImport(ev){
 
 function periodActivityForCustomer(id){
   const p=currentSalesPeriodNumber();
-  return activity.filter(a=>a.customerId===id && a.iso && periodInfo(a.iso).period===p);
+  return activity.filter(a=>String(a.customerId)===String(id) && a.iso && periodInfo(a.iso).period===p);
 }
 function successfulConversationCount(id, scope='all'){
   return activity.filter(a=>a.customerId===id && a.type==='Spoke to customer' && a.iso).length;
@@ -1306,7 +1316,7 @@ function recentTxFor(id){
 }
 function top20Set(){ return new Set(top20Customers().map(c=>c.customer)); }
 function normalContactDue(id){
-  return !periodActivityForCustomer(id).some(a=>a.type==='Spoke to customer');
+  return !periodActivityForCustomer(id).some(a=>['Spoke to customer','Quote given'].includes(a.type));
 }
 function workflowForCustomer(c){
   const id=String(c.customer||'').trim();
@@ -1331,11 +1341,11 @@ function workflowForCustomer(c){
 }
 function todaysUserMetrics(userId){
   const today=isoToday();
-  const acts=activity.filter(a=>a.audit?.userId===userId && String(a.iso||'').slice(0,10)===today);
-  const leadIds=new Set(leads.filter(l=>l.audit?.userId===userId && String(l.createdAt||'').slice(0,10)===today).map(l=>l.id));
+  const acts=activity.filter(a=>a.audit?.userId===userId && recordDateKey(a.iso)===today);
+  const leadIds=new Set(leads.filter(l=>l.audit?.userId===userId && recordDateKey(l.createdAt)===today).map(l=>l.id));
   return {
     calls:acts.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).length,
-    conversations:acts.filter(a=>a.type==='Spoke to customer').length,
+    conversations:acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type)).length,
     leads:leadIds.size,
     surveys:acts.filter(a=>a.surveyBooked).length
   };
@@ -1357,26 +1367,25 @@ function updateTargetHistory(user){
   const was=targetHistory[user.id][key]?.complete;
   targetHistory[user.id][key]={date:key,targets:{...s.targets},actual:{...s.actual},achieved:[...s.achieved],complete:s.complete};
   storage.set('bdm_target_history',targetHistory);
-  if(s.complete && !was) setTimeout(()=>alert(`Target day complete for ${user.name}. Streak day recorded.`),50);
+  if(s.complete && !was) setTimeout(()=>alert(`Target day complete for ${user.name}. ${[0,6].includes(new Date().getDay())?'Targets achieved.':'Streak day recorded.'}`),50);
 }
 function userStreak(userId){
-  const hist=targetHistory[userId]||{};
-  let current=0,best=0,run=0;
-  const dates=Object.keys(hist).sort();
-  dates.forEach(k=>{ if(hist[k].complete){run++;best=Math.max(best,run);} else run=0; });
-  let d=localDateOnly(new Date());
-  while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
-  for(let i=0;i<120;i++){
-    const k=workingDayKey(d), item=hist[k];
-    if(item?.complete) current++;
-    else if(k!==isoToday()) break;
-    d.setDate(d.getDate()-1);
-    while(d.getDay()===0||d.getDay()===6) d.setDate(d.getDate()-1);
-  }
+  const hist=targetHistory[userId]||{},today=isoToday();
+  let current=0,best=0,run=0,previous=null;
+  const dates=Object.keys(hist).filter(k=>k<=today).sort();
+  dates.forEach(k=>{
+    const date=localDateOnly(k);if(!date||[0,6].includes(date.getDay()))return;
+    if(hist[k].complete){
+      if(previous){const expected=new Date(previous);do{expected.setDate(expected.getDate()+1);}while([0,6].includes(expected.getDay()));if(workingDayKey(expected)!==k)run=0;}
+      run++;best=Math.max(best,run);previous=date;
+    }else{run=0;previous=null;}
+  });
+  const d=localDateOnly(new Date());
+  while([0,6].includes(d.getDay()))d.setDate(d.getDate()-1);
+  if(workingDayKey(d)===today&&!hist[today]?.complete){d.setDate(d.getDate()-1);while([0,6].includes(d.getDay()))d.setDate(d.getDate()-1);}
+  while(hist[workingDayKey(d)]?.complete){current++;d.setDate(d.getDate()-1);while([0,6].includes(d.getDay()))d.setDate(d.getDate()-1);}
   return {current,best};
 }
-
-
 
 function currentPeriodTarget(){
   const p=currentSalesPeriodNumber();
@@ -1604,12 +1613,12 @@ function liveGroups(){
     const wf=workflowForCustomer(c);
     const id=String(c.customer||'').trim();
     return {
-      id,name:c.name||'Unnamed customer',phone:'',months:n(c.recency),
+      id,name:c.name||'Unnamed customer',phone:String(c.phone||c.telephone||'').trim(),months:n(c.recency),
       last:c.recency===0?'Current period':`${n(c.recency)} periods ago`,
       sales:n(c.salesMAT),tx:n(c.transactionsMAT),
       pattern:c.regularGoneQuiet?'Previously regular trader now quiet':'Imported customer',
       offer:wf?.reason || (c.lifecycle==='critical'?'Urgent reactivation offer':c.lifecycle==='atrisk'?'Re-engagement call / offer':c.lifecycle==='never'?'Secure first trade':'Review growth opportunity'),
-      lastnote:'No BD note recorded',
+      lastnote:activity.find(a=>String(a.customerId)===id)?.detail||'No BD note recorded',
       opportunityScore:customerOpportunityScore(c,prevMapForPriority[id]),
       workflow:wf?.key||null, workflowLabel:wf?.label||null,
       daysOpen:daysOpenForCustomer(c), recentSpend:recentSpend30(id), recentTransactions:recentTxFor(id)
@@ -2057,7 +2066,7 @@ function renderStats(){
         <div class="metric-box"><b>${m.voicemail}</b><span>Voicemails left</span><small>This period</small></div>
         <div class="metric-box"><b>${m.conversations}</b><span>Conversations</span><small>Spoken to / quoted</small></div>
         <div class="metric-box"><b>${m.contactPct}%</b><span>Customers contacted</span><small>Of customer base this period</small></div>
-        <div class="metric-box"><b>${m.leadStrike.toFixed(1)}%</b><span>Sales strike rate</span><small>Leads generated ÷ conversations</small></div>
+        <div class="metric-box"><b>${m.leadStrike.toFixed(1)}%</b><span>Sales strike rate</span><small>Customers with leads ÷ customers spoken to</small></div>
       </div>
     </section>
 
@@ -2066,10 +2075,10 @@ function renderStats(){
       <div class="metric-stack">
         <div class="metric-box"><b>${m.weekLeadCount}</b><span>Leads this week</span><small>${money(m.weekLeadValue)} value</small></div>
         <div class="metric-box"><b>${money(m.weekLeadMargin)}</b><span>Margin this week</span><small>Generated leads</small></div>
-        <div class="metric-box"><b>${m.leadCount}</b><span>Leads this period</span><small>${money(m.leadValue)} value</small></div>
-        <div class="metric-box"><b>${money(m.leadMargin)}</b><span>Margin this period</span><small>${m.marginPct.toFixed(1)}%</small></div>
+        <div class="metric-box"><b>${m.generatedLeadCount}</b><span>Leads this period</span><small>${money(m.generatedLeadValue)} value</small></div>
+        <div class="metric-box"><b>${money(m.generatedLeadMargin)}</b><span>Margin this period</span><small>${m.generatedMarginPct.toFixed(1)}%</small></div>
         <div class="metric-box"><b>${m.conversionRate.toFixed(1)}%</b><span>Lead conversion</span><small>Won ÷ period leads</small></div>
-        <div class="metric-box"><b>${m.followToday+m.overdue}</b><span>Follow-ups needing action</span><small>${m.overdue} overdue</small></div>
+        <div class="metric-box"><b>${m.followToday+m.overdue+m.taskFollowToday+m.taskOverdue}</b><span>Follow-ups needing action</span><small>${m.overdue+m.taskOverdue} overdue · calls and leads</small></div>
       </div>
     </section>
     <section class="stat-section">
@@ -2127,7 +2136,7 @@ function renderCustomer(successMsg=''){
   const qTitles={critical:'Urgent calls',atrisk:'At risk',growth:'Growth',new:'New accounts',top20:'Top 20',newNurture:'New account nurture',oldNurture:'Old account nurture',thanks:'Given Thanks',normal:'Period contacts'};
   title.textContent=qTitles[queueKey]||'Customer calls';
   const phoneBlock = c.phone
-    ? `<a class="phone" href="tel:${c.phone.replace(/\s/g,'')}">☎ ${c.phone}</a>`
+    ? `<a class="phone" href="tel:${escapeHtml(String(c.phone).replace(/[^+\d*#]/g,''))}">☎ ${escapeHtml(c.phone)}</a>`
     : `<div class="phone" style="color:#71817d">Telephone not in Data tab</div>`;
   app.innerHTML = `
     ${successMsg?`<div class="success">${successMsg}</div>`:''}
@@ -2282,6 +2291,13 @@ function renderOutcome(type,c){
   });
   document.getElementById('cancelOutcome').onclick=()=>renderCustomer();
   document.getElementById('saveNext').onclick=()=>{
+    const duration=Number(document.getElementById('callDuration').value);
+    if(!Number.isFinite(duration)||duration<0){alert('Enter a valid call duration.');return;}
+    if(type==='quote'){
+      const value=Number(document.getElementById('value').value),margin=Number(document.getElementById('margin').value);
+      if(!Number.isFinite(value)||value<0||!Number.isFinite(margin)||margin>value){alert('Check the quote value and margin.');return;}
+      if(!document.getElementById('quoteDetails').value.trim()){alert('Describe the sales opportunity.');return;}
+    }
     if(type==='quote' && !/^\d{6}$/.test(document.getElementById('quoteNo').value.trim())){
       document.getElementById('quoteNo').focus();
       alert('Quotation number must be exactly 6 digits.');
@@ -2910,15 +2926,26 @@ function allCallReasons(c){
   return reasons;
 }
 function dailyQueue(){
-  const groups=liveGroups(), seen=new Set(), out=[];
+  const groups=liveGroups(),seen=new Set(),out=[];
+  const model=currentCustomerModel(),raw=new Map((model?.enriched||[]).map(c=>[String(c.customer),c])),previous=new Map((model?.prev?.customers||[]).map(c=>[String(c.customer),c]));
   const add=c=>{if(c&&!seen.has(String(c.id))){seen.add(String(c.id));out.push(c);}};
   const candidates=Object.values(groups).flat();
-  ownDue().forEach(f=>add(candidates.find(c=>String(c.id)===String(f.customerId))||{id:f.customerId,name:f.customer,offer:f.reason,pattern:'Follow-up',lastnote:'',months:0,sales:0,tx:0}));
-  ['top20','critical','oldNurture','newNurture','thanks','atrisk','new','growth','normal'].forEach(k=>(groups[k]||[]).forEach(c=>{
-    if(!activity.some(a=>String(a.customerId)===String(c.id)&&String(a.iso||'').slice(0,10)===isoToday()&&['Spoke to customer','Quote given'].includes(a.type)))add(c);
-  }));
+  ownDue().forEach(f=>add(customerForFollowup(f,candidates)));
+  const notSpokenToday=c=>!activity.some(a=>String(a.customerId)===String(c.id)&&recordDateKey(a.iso)===isoToday()&&['Spoke to customer','Quote given'].includes(a.type));
+  ['top20','oldNurture','newNurture','thanks'].forEach(k=>(groups[k]||[]).filter(notSpokenToday).forEach(add));
+  const rank=c=>raw.has(String(c.id))?priorityRankForCustomer(raw.get(String(c.id)),previous.get(String(c.id))):callPriorityConfig.length+1;
+  ['critical','atrisk','new','growth','normal'].flatMap(k=>groups[k]||[]).filter(notSpokenToday)
+    .sort((a,b)=>rank(a)-rank(b)||n(b.opportunityScore)-n(a.opportunityScore)).forEach(add);
   return out;
 }
+function customerForFollowup(f,candidates=Object.values(liveGroups()).flat()){
+  const current=candidates.find(c=>String(c.id)===String(f.customerId));if(current)return current;
+  const historical=[...snapshots].reverse().flatMap(s=>s.customers||[]).find(c=>String(c.customer)===String(f.customerId));
+  return {id:f.customerId,name:f.customer||historical?.name,phone:String(historical?.phone||historical?.telephone||''),
+    offer:f.reason,pattern:'Follow-up',lastnote:activity.find(a=>String(a.customerId)===String(f.customerId))?.detail||'',
+    months:n(historical?.recency),sales:n(historical?.salesMAT),tx:n(historical?.transactionsMAT)};
+}
+
 const originalHome=renderHome;
 renderHome=function(){
   originalHome();
@@ -2958,7 +2985,7 @@ function renderFollowups(userId=activeUserId){
   const tasks=[...followups.filter(f=>!f.completedAt&&f.ownerId===userId).map(f=>({...f,kind:'task'})),...leads.filter(l=>l.ownerId===userId&&!['won','lost'].includes(l.status)&&l.followUpDate).map(l=>({id:l.id,date:l.followUpDate,customerId:l.customerId,customer:l.customer,reason:l.nextActionReason||l.details||l.stage,kind:'lead'}))].sort((a,b)=>a.date.localeCompare(b.date));
   app.innerHTML=`<section class="form-card"><h2>${esc(users.find(u=>u.id===userId)?.name||'My')} follow-ups</h2><button class="wide-btn secondary" id="followHome">Back to Today</button></section><section class="list">${tasks.map((f,i)=>`<div class="history-card"><span class="badge">${f.date<isoToday()?'Overdue':f.date===isoToday()?'Today':'Scheduled'}</span><h2>${esc(f.customer)}</h2><p>${esc(f.date)} · ${esc(f.reason)}</p><button class="wide-btn" data-follow-call="${i}">Call customer</button>${f.kind==='lead'?`<button class="wide-btn secondary" data-follow-lead="${esc(f.id)}">Update lead</button>`:''}</div>`).join('')||'<p>No follow-ups scheduled.</p>'}</section>`;
   document.getElementById('followHome').onclick=renderHome;
-  document.querySelectorAll('[data-follow-call]').forEach(b=>b.onclick=()=>{const f=tasks[+b.dataset.followCall];const c=Object.values(liveGroups()).flat().find(c=>String(c.id)===String(f.customerId))||{id:f.customerId,name:f.customer,offer:f.reason,pattern:'Follow-up',lastnote:'',months:0,sales:0,tx:0};queueOwnerId=userId;queueSnapshot=[c];queueKey='day';queueIndex=0;renderCustomer();});
+  document.querySelectorAll('[data-follow-call]').forEach(b=>b.onclick=()=>{const f=tasks[+b.dataset.followCall];const c=customerForFollowup(f);queueOwnerId=userId;queueSnapshot=[c];queueKey='day';queueIndex=0;renderCustomer();});
   document.querySelectorAll('[data-follow-lead]').forEach(b=>b.onclick=()=>renderLeadEditor(b.dataset.followLead));
 }
 const originalOutcome=renderOutcome;
@@ -2967,7 +2994,7 @@ renderOutcome=function(type,c){
   const follow=document.getElementById('follow');
   if(follow){follow.min=isoToday();follow.parentElement.insertAdjacentHTML('beforeend',`<div class="pill-row"><button type="button" class="pill" data-next-days="1">Tomorrow</button><button type="button" class="pill" data-next-days="7">Next week</button></div><label>Next action reason<input id="nextReason" placeholder="What needs to happen?"></label><label>Next action owner<select id="nextOwner">${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}" ${u.id===activeUserId?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>`);document.querySelectorAll('[data-next-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.nextDays));follow.value=workingDayKey(d);});}
   const reasons=allCallReasons(c).filter(r=>['newNurture','oldNurture','thanks'].includes(r.key)||r.key.includes(':'));
-  if(type==='contact')document.getElementById('saveNext').insertAdjacentHTML('beforebegin',`<section class="form-card"><h2>Actions covered in this conversation</h2>${reasons.map(r=>`<label style="display:block;margin:12px 0"><input type="checkbox" data-covered="${esc(r.key)}" checked> ${esc(r.label)} · ${esc(r.reason)}</label>`).join('')||'<p>Period contact will be recorded.</p>'}</section>`);
+  if(type==='contact'||type==='quote')document.getElementById('saveNext').insertAdjacentHTML('beforebegin',`<section class="form-card"><h2>Actions covered in this conversation</h2>${reasons.map(r=>`<label style="display:block;margin:12px 0"><input type="checkbox" data-covered="${esc(r.key)}" checked> ${esc(r.label)} · ${esc(r.reason)}</label>`).join('')||'<p>Period contact will be recorded.</p>'}</section>`);
   if(type==='quote'){const owner=document.getElementById('nextOwner');owner.value=document.getElementById('leadOwner').value;owner.onchange=()=>{document.getElementById('leadOwner').value=owner.value;};document.getElementById('leadOwner').onchange=()=>{owner.value=document.getElementById('leadOwner').value;};}
   const save=document.getElementById('saveNext').onclick;
   document.getElementById('saveNext').onclick=()=>{
@@ -2984,9 +3011,9 @@ requestPin=function(options){
   originalPin({...options,onSuccess:user=>{
     const before=JSON.parse(JSON.stringify(nurtureRecord(action.customerId)));
     const completedAt=new Date().toISOString();
-    if(action.type==='contact'){
+    if(action.type==='contact'||action.type==='quote'){
       action.covered.filter(k=>k.startsWith('task:')).forEach(k=>{const f=followups.find(f=>f.id===k.slice(5));if(f){f.completedAt=completedAt;f.completedBy=user.id;}});
-      action.covered.filter(k=>k.startsWith('lead:')).forEach(k=>{const l=leads.find(l=>l.id===k.slice(5));if(l){l.followUpDate=action.date||'';l.events=[...(l.events||[]),{date:completedAt,label:'Follow-up conversation',text:action.reason||'Follow-up completed; no further date scheduled',by:user.name}];}});
+      action.covered.filter(k=>k.startsWith('lead:')).forEach(k=>{const l=leads.find(l=>l.id===k.slice(5));if(l){l.followUpDate=action.date||'';l.nextActionReason=action.reason;l.ownerId=action.ownerId||l.ownerId;l.ownerName=users.find(u=>u.id===l.ownerId)?.name||l.ownerName;l.events=[...(l.events||[]),{date:completedAt,label:'Follow-up conversation',text:action.reason||'Follow-up completed; no further date scheduled',by:user.name}];}});
     }
     if(action.date&&action.type!=='quote'&&!action.covered.some(k=>k.startsWith('lead:')))followups.push({...action,id:'F'+Date.now(),ownerId:action.ownerId||user.id,createdAt:completedAt,createdBy:user.id});
     storage.set('bdm_followups',followups);storage.set('bdm_leads',leads);
@@ -2995,7 +3022,7 @@ requestPin=function(options){
     try{options.onSuccess(user);}finally{renderCustomer=renderAfter;}
     const latest=activity[0];if(latest&&String(latest.customerId)===String(action.customerId)){latest.deal=action.deal;latest.follow=action.date;latest.covered=action.covered;latest.nextActionReason=action.reason;storage.set('bdm_activity',activity);}
     if(action.type==='quote'&&leads[0]){leads[0].nextActionReason=action.reason;storage.set('bdm_leads',leads);}
-    if(action.type==='contact'){
+    if(action.type==='contact'||action.type==='quote'){
       const p=nurtureRecord(action.customerId);Object.assign(p,before);
       if(action.covered.includes('newNurture'))p.newContacts=Math.min(4,n(before.newContacts)+1);
       if(action.covered.includes('oldNurture')){p.oldContacts=n(before.oldContacts)+1;p.lastOldContact=isoToday();}
@@ -3039,16 +3066,18 @@ function leadFormCustomers(){
   leads.forEach(l=>{if(!found.has(String(l.customerId)))found.set(String(l.customerId),{id:String(l.customerId),name:l.customer});});
   return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name));
 }
-function renderSalesLeadForm(existing=null,customer=null){
+function renderSalesLeadForm(existing=null,customer=null,returnTo=null){
   const editing=!!existing,l=existing||{},customers=leadFormCustomers();
   if(customer&&!customers.some(c=>c.id===String(customer.id)))customers.unshift(customer);
   title.textContent=editing?'Update lead':'Add lead';setNav('leads');currentView='leads';
   const customerId=String(l.customerId||customer?.id||'');
-  app.innerHTML=`<section class="form-card"><h2>${editing?esc(l.customer):'New sales opportunity'}</h2><p class="muted">Responsibility belongs to this lead. The customer account is shared.</p><div class="field"><label for="salesCustomer">Customer</label><select id="salesCustomer" ${editing?'disabled':''}><option value="">Choose customer</option>${customers.map(c=>`<option value="${esc(c.id)}" ${c.id===customerId?'selected':''}>${esc(c.name)} · ${esc(c.id)}</option>`).join('')}</select></div><div class="field"><label for="salesCategory">Lead type</label><select id="salesCategory"><option ${l.category==='Kitchen'||!l.category?'selected':''}>Kitchen</option><option ${l.category==='Joinery'?'selected':''}>Joinery</option></select></div><div class="field"><label for="salesDetails">Opportunity details</label><input id="salesDetails" value="${esc(l.details||'')}" placeholder="What is the customer planning to buy?"></div><div class="field"><label for="salesStage">Stage</label><select id="salesStage">${LEAD_STAGES.map(s=>`<option ${s===(editing?normalizeStage(l):'Opportunity')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="salesOwner">Lead responsibility / next action owner</label><select id="salesOwner">${staffOptions(l.ownerId||activeUserId,'Choose staff member')}</select></div><div class="field"><label for="salesQuote">Quotation number</label><input id="salesQuote" inputmode="numeric" maxlength="6" value="${esc(l.quoteNo||'')}" placeholder="6 digits once quoted"></div><div class="lead-form-grid"><div class="field"><label for="salesValue">Estimated value £</label><input id="salesValue" type="number" min="0" step="0.01" value="${n(l.value)}"></div><div class="field"><label for="salesMargin">Estimated margin £</label><input id="salesMargin" type="number" step="0.01" value="${n(l.margin)}"></div></div><div class="field"><label for="salesRequired">Estimated date required</label><input id="salesRequired" type="date" value="${esc(l.requiredByDate||'')}"></div><div class="field"><label for="salesFollow">Next action date</label><input id="salesFollow" type="date" value="${esc(l.followUpDate||'')}"></div><div class="pill-row"><button class="pill" data-sales-days="1">Tomorrow</button><button class="pill" data-sales-days="7">Next week</button></div><div class="field"><label for="salesAction">Next action</label><input id="salesAction" value="${esc(l.nextActionReason||'')}" placeholder="Call about quote, book design appointment…"></div><div class="field" id="salesLossWrap"><label for="salesLoss">Lost reason</label><select id="salesLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div><div class="field"><label for="salesNotes">Sales notes</label><textarea id="salesNotes">${esc(l.notes||'')}</textarea></div></section>${kitchenHandoverFields('sales',l)}<div id="salesError" role="alert"></div><button class="wide-btn" id="saveSalesLead">${editing?'Save changes':'Save lead'}</button><button class="wide-btn secondary" id="cancelSalesLead">Cancel</button>`;
+  app.innerHTML=`<section class="form-card"><h2>${editing?esc(l.customer):'New sales opportunity'}</h2><p class="muted">Responsibility belongs to this lead. The customer account is shared.</p><div class="field"><label for="salesCustomer">Customer</label><select id="salesCustomer" ${editing?'disabled':''}><option value="">Choose customer</option>${customers.map(c=>`<option value="${esc(c.id)}" ${c.id===customerId?'selected':''}>${esc(c.name)} · ${esc(c.id)}</option>`).join('')}</select></div><div class="field"><label for="salesCategory">Lead type</label><select id="salesCategory"><option ${l.category==='Kitchen'||!l.category?'selected':''}>Kitchen</option><option ${l.category==='Joinery'?'selected':''}>Joinery</option></select></div><div class="field"><label for="salesDetails">Opportunity details</label><input id="salesDetails" value="${esc(l.details||'')}" placeholder="What is the customer planning to buy?"></div><div class="field"><label for="salesStage">Stage</label><select id="salesStage">${LEAD_STAGES.map(s=>`<option ${s===(editing?normalizeStage(l):'Opportunity')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="salesOwner">Lead responsibility / next action owner</label><select id="salesOwner">${staffOptions(l.ownerId||activeUserId,'Choose staff member')}</select></div><div class="field"><label for="salesQuote">Quotation number</label><input id="salesQuote" inputmode="numeric" maxlength="6" value="${esc(l.quoteNo||'')}" placeholder="6 digits once quoted"></div><div class="lead-form-grid"><div class="field"><label for="salesValue">Estimated value £</label><input id="salesValue" type="number" min="0" step="0.01" value="${n(l.value)}"></div><div class="field"><label for="salesMargin">Estimated margin £</label><input id="salesMargin" type="number" step="0.01" value="${n(l.margin)}"></div></div><div class="field"><label for="salesMarginPct">Margin %</label><input id="salesMarginPct" readonly placeholder="Calculated automatically"></div><div class="field"><label for="salesRequired">Estimated date required</label><input id="salesRequired" type="date" value="${esc(l.requiredByDate||'')}"></div><div class="field"><label for="salesFollow">Next action date</label><input id="salesFollow" type="date" value="${esc(l.followUpDate||'')}"></div><div class="pill-row"><button class="pill" data-sales-days="1">Tomorrow</button><button class="pill" data-sales-days="7">Next week</button></div><div class="field"><label for="salesAction">Next action</label><input id="salesAction" value="${esc(l.nextActionReason||'')}" placeholder="Call about quote, book design appointment…"></div><div class="field" id="salesLossWrap"><label for="salesLoss">Lost reason</label><select id="salesLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div><div class="field"><label for="salesNotes">Sales notes</label><textarea id="salesNotes">${esc(l.notes||'')}</textarea></div></section>${kitchenHandoverFields('sales',l)}<div id="salesError" role="alert"></div><button class="wide-btn" id="saveSalesLead">${editing?'Save changes':'Save lead'}</button><button class="wide-btn secondary" id="cancelSalesLead">Cancel</button>`;
+  const updateMargin=()=>{const value=Number(document.getElementById('salesValue').value),margin=Number(document.getElementById('salesMargin').value);document.getElementById('salesMarginPct').value=value>0?(margin/value*100).toFixed(1)+'%':'';};
+  document.getElementById('salesValue').oninput=updateMargin;document.getElementById('salesMargin').oninput=updateMargin;updateMargin();
   const refresh=()=>{document.getElementById('salesKitchen').hidden=document.getElementById('salesCategory').value!=='Kitchen';document.getElementById('salesLossWrap').hidden=document.getElementById('salesStage').value!=='Lost';};
   document.getElementById('salesCategory').onchange=refresh;document.getElementById('salesStage').onchange=refresh;refresh();
   document.querySelectorAll('[data-sales-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.salesDays));document.getElementById('salesFollow').value=workingDayKey(d);});
-  document.getElementById('cancelSalesLead').onclick=()=>renderLeads();
+  document.getElementById('cancelSalesLead').onclick=()=>returnTo?returnTo():renderLeads();
   document.getElementById('saveSalesLead').onclick=()=>{
     const value=id=>document.getElementById(id).value.trim();
     const data={customerId:value('salesCustomer'),category:value('salesCategory'),details:value('salesDetails'),stage:value('salesStage'),ownerId:value('salesOwner'),quoteNo:value('salesQuote'),value:Number(value('salesValue')),margin:Number(value('salesMargin')),requiredByDate:value('salesRequired'),followUpDate:value('salesFollow'),nextActionReason:value('salesAction'),lossReason:value('salesLoss'),notes:value('salesNotes'),...readKitchenHandover('sales',value('salesCategory'))};
@@ -3061,7 +3090,7 @@ function renderSalesLeadForm(existing=null,customer=null){
       const changed={...data,ownerName:users.find(u=>u.id===data.ownerId).name,status,followUpDate:closed?'':data.followUpDate,lossReason:data.stage==='Lost'?data.lossReason:'',updatedAudit:auditStamp(user,editing?'Lead updated':'Lead created')};
       if(existing){const previous=normalizeStage(existing);Object.assign(existing,changed);if(closed&&previous!==data.stage)existing.closedAt=now;else if(!closed)existing.closedAt=null;existing.events=[...(existing.events||[]),event];}
       else leads.unshift({...changed,id:'L'+Date.now()+'-'+Math.random().toString(36).slice(2,7),createdAt:now,closedAt:closed?now:null,audit:auditStamp(user,'Lead created'),events:[event]});
-      storage.set('bdm_leads',leads);if(!editing)updateTargetHistory(user);renderLeads();
+      storage.set('bdm_leads',leads);if(!editing)updateTargetHistory(user);if(returnTo)returnTo('✓ Lead recorded. Continue this customer’s call.');else renderLeads();
     }});
   };
 }
@@ -3084,7 +3113,7 @@ const salesCustomerRenderer=renderCustomer;
 renderCustomer=function(msg=''){
   salesCustomerRenderer(msg);const c=queueSnapshot?.[queueIndex];const history=document.getElementById('customerTimeline');if(!c||!history)return;
   history.insertAdjacentHTML('afterend','<button class="wide-btn secondary" id="customerAddLead">Add sales lead</button>');
-  document.getElementById('customerAddLead').onclick=()=>renderSalesLeadForm(null,{id:String(c.id),name:c.name});
+  document.getElementById('customerAddLead').onclick=()=>renderSalesLeadForm(null,{id:String(c.id),name:c.name},renderCustomer);
 };
 const salesOutcomeRenderer=renderOutcome;
 renderOutcome=function(type,c){
@@ -3104,7 +3133,7 @@ renderOutcome=function(type,c){
 const originalImport=renderImport;
 renderImport=function(){
   originalImport();title.textContent='Reports and backups';
-  app.insertAdjacentHTML('beforeend',`<section class="form-card"><h2>YTD sales report</h2><p class="muted">Top 20 customers use YTD sales. Include Customer / Account, Name and YTD Sales columns.</p><input id="centreYtd" type="file" accept=".xlsx,.xls,.xlsm,.csv"><h2>Transactions report</h2><p class="muted">Include Customer / Account, Date and Value / Sales / Amount columns. Reference, Description and Category are optional.</p><input id="centreTransactions" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="reportStatus"></div></section><section class="form-card"><h2>Report freshness</h2>${['customers','ytd','transactions'].map(k=>{const m=reportMetadata[k];return `<p><b>${esc(k)}</b> · ${m?esc(m.filename)+' · '+esc(m.uploadedAt.slice(0,10))+' · '+m.rows+' rows'+(m.warnings?.length?'<br>'+m.warnings.map(esc).join('<br>'):''):'No upload recorded'}</p>`;}).join('')}<p class="muted">Data and PIN access currently stay in this browser. Export backups before changing device or clearing browser storage.</p><button class="wide-btn" id="exportBackup">Download backup</button><label>Restore backup<input id="restoreBackup" type="file" accept=".json"></label><div id="backupStatus"></div></section>`);
+  app.insertAdjacentHTML('beforeend',`<section class="form-card"><h2>YTD sales report</h2><p class="muted">Top 20 customers use YTD sales. Include Customer / Account, Name and YTD Sales columns.</p><input id="centreYtd" type="file" accept=".xlsx,.xls,.xlsm,.csv"><h2>Transactions report</h2><p class="muted">Include Customer / Account, Date and Value / Sales / Amount columns. Reference, Description and Category are optional.</p><input id="centreTransactions" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="reportStatus"></div></section><section class="form-card"><h2>Report freshness</h2>${['customers','ytd','transactions'].map(k=>{const m=reportMetadata[k];return `<p><b>${esc(k)}</b> · ${m?esc(m.filename)+' · '+esc(m.uploadedAt.slice(0,10))+' · '+m.rows+' rows'+(m.warnings?.length?'<br>'+m.warnings.map(esc).join('<br>'):''):'No upload recorded'}</p>`;}).join('')}<p class="muted">${cloud.enabled?'Depot data is shared securely. Download a backup for your own records.':'Data and PIN access currently stay in this browser. Export backups before changing device or clearing browser storage.'}</p><button class="wide-btn" id="exportBackup">Download backup</button><label>Restore backup<input id="restoreBackup" type="file" accept=".json"></label><div id="backupStatus"></div></section>`);
   document.getElementById('fileInput').onchange=ev=>requestPin({title:'Upload customer report',managerOnly:true,onSuccess:()=>validatedReport('customers',ev.target.files[0])});
   document.getElementById('centreYtd').onchange=ev=>requestPin({title:'Upload YTD report',managerOnly:true,onSuccess:()=>validatedReport('ytd',ev.target.files[0])});
   document.getElementById('centreTransactions').onchange=ev=>requestPin({title:'Upload transactions',managerOnly:true,onSuccess:()=>validatedReport('transactions',ev.target.files[0])});
@@ -3118,8 +3147,9 @@ function reportDate(value){
 }
 function validatedCustomerRows(rows){
   const customers=[],seen=new Set();
+  const phoneColumn=rows.slice(0,4).flatMap(row=>(row||[]).map((v,i)=>/^(?:(?:contact|customer|primary|main)\s+)?(?:telephone|phone|mobile|tel)(?:\s+(?:number|no\.?))?$/i.test(String(v||'').trim())?i:-1)).find(i=>i>=0);
   const ytd=rows.slice(0,4).map(row=>(row||[]).findIndex(v=>/ytd|year\s*to\s*date/i.test(String(v||''))&&/sales|spend/i.test(String(v||'')))).find(i=>i>=0);
-  rows.slice(4).forEach((row,i)=>{if(!(row||[]).some(v=>v!=null&&String(v).trim()))return;const id=String(row[0]??'').trim();if(/^(total|grand total)$/i.test(id))return;if(!id||!String(row[1]??'').trim())throw new Error('Missing account or name on row '+(i+5));if(seen.has(id))throw new Error('Duplicate customer account '+id);seen.add(id);const obj={};FIELD_NAMES.forEach((k,c)=>obj[k]=row[c]??null);obj.customer=id;if(ytd!=null)obj.salesYTD=reportNumber(row[ytd]);customers.push(obj);});
+  rows.slice(4).forEach((row,i)=>{if(!(row||[]).some(v=>v!=null&&String(v).trim()))return;const id=String(row[0]??'').trim();if(/^(total|grand total)$/i.test(id))return;if(!id||!String(row[1]??'').trim())throw new Error('Missing account or name on row '+(i+5));if(seen.has(id))throw new Error('Duplicate customer account '+id);seen.add(id);const obj={};FIELD_NAMES.forEach((k,c)=>obj[k]=row[c]??null);obj.customer=id;if(phoneColumn!=null)obj.phone=String(row[phoneColumn]??'').trim();if(ytd!=null)obj.salesYTD=reportNumber(row[ytd]);customers.push(obj);});
   if(!customers.length)throw new Error('No customer rows found after the four report header rows.');return customers;
 }
 function transactionRows(rows){
