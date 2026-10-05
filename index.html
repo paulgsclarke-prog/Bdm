@@ -985,6 +985,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .app-error{border:1px solid #e0b7b7;border-left:5px solid #b31f28;border-radius:6px;background:#fff4f4;padding:14px;margin:12px 0}
 .app-error b{display:block}.app-error small{display:block;color:#6b4d4d;margin-top:4px}
 
+/* V27 tracked surveys + end-of-day review */
+.survey-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.survey-status-card{border:1px solid #d7d4cc;border-radius:5px;background:#fff;padding:11px;text-align:center}
+.survey-status-card b{display:block;font-size:22px}.survey-status-card small{display:block;color:#646363;margin-top:4px}
+.survey-list-item{border:1px solid #d7d4cc;border-radius:5px;background:#fff;padding:12px;margin-top:8px}
+.eod-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #e4e2dc}
+.eod-row:last-child{border-bottom:0}.eod-row b{display:block}.eod-row small{display:block;color:#646363;margin-top:3px}
 </style>
 </head>
 <body>
@@ -3477,7 +3484,7 @@ async function validatedReport(kind,file){
     document.getElementById('reportStatus').innerHTML=`<div class="success">Imported ${parsed.length} rows. ${warnings.map(esc).join(' ')}</div>`;
   }catch(e){status.innerHTML=`<div class="import-status error">${esc(e.message)}</div>`;}
 }
-const BACKUP_TYPES={bdm_campaigns:'array',bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
+const BACKUP_TYPES={bdm_surveys:'array',bdm_campaigns:'array',bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
 function makeBackup(){if(cloud.enabled)return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data:structuredClone(cloud.data)};const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(k))data[k]=JSON.parse(localStorage.getItem(k));}return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data};}
 function validateBackup(b){
   if(b?.app!=='HANDSOME BDM'||b.version!==1||!b.data||Array.isArray(b.data))throw new Error('This is not a supported BDM backup.');
@@ -4313,6 +4320,67 @@ window.addEventListener('error',event=>{
 window.addEventListener('unhandledrejection',event=>{
   console.error('BDM promise error',event.reason);
 });
+
+
+/* V27: tracked surveys and a manager end-of-day review. */
+let surveys=storage.get('bdm_surveys',[]);
+function surveyLeadForCustomer(customerId){return leads.find(l=>String(l.customerId)===String(customerId)&&l.category==='Kitchen'&&!leadIsClosed(l))||null;}
+function createSurveyRecord(data){
+  const existing=surveys.find(s=>String(s.customerId)===String(data.customerId)&&s.status!=='completed'&&s.status!=='cancelled');
+  if(existing){if(data.date)existing.date=data.date;if(data.ownerId)existing.ownerId=data.ownerId;if(data.leadId)existing.leadId=data.leadId;storage.set('bdm_surveys',surveys);return existing;}
+  const record={id:'S'+Date.now()+'-'+Math.random().toString(36).slice(2,6),customerId:String(data.customerId),customer:data.customer,date:data.date||'',ownerId:data.ownerId||activeUserId,leadId:data.leadId||'',status:'booked',createdAt:new Date().toISOString(),createdBy:data.createdBy||activeUserId,completedAt:null};
+  surveys.unshift(record);storage.set('bdm_surveys',surveys);return record;
+}
+function surveyCounts(userId=null){
+  const today=isoToday(),list=surveys.filter(s=>s.status!=='cancelled'&&(!userId||s.ownerId===userId));
+  return {upcoming:list.filter(s=>s.status==='booked'&&s.date>today).length,today:list.filter(s=>s.status==='booked'&&s.date===today).length,overdue:list.filter(s=>s.status==='booked'&&s.date&&s.date<today).length,completed:list.filter(s=>s.status==='completed').length};
+}
+function renderSurveys(userId=null){
+  currentView='surveys';title.textContent='Surveys';setNav('');
+  const today=isoToday(),list=surveys.filter(s=>!userId||s.ownerId===userId).sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999'))),counts=surveyCounts(userId);
+  app.innerHTML='<section class="form-card"><div class="row"><div><h2>Survey workflow</h2><p class="sub">Booked Kitchen surveys and appointments.</p></div><button class="filter-btn" id="surveysBack">Back</button></div><div class="survey-status-grid"><div class="survey-status-card"><b>'+counts.overdue+'</b><small>Overdue</small></div><div class="survey-status-card"><b>'+counts.today+'</b><small>Today</small></div><div class="survey-status-card"><b>'+counts.upcoming+'</b><small>Upcoming</small></div></div></section><section class="form-card">'+(list.map(s=>{const lead=leads.find(l=>l.id===s.leadId);return '<div class="survey-list-item"><div class="row"><div><b>'+esc(s.customer)+'</b><small>'+esc(s.date||'No date')+' · '+esc(users.find(u=>u.id===s.ownerId)?.name||'Unassigned')+'</small></div><span class="badge '+(s.status==='completed'?'green':s.date<today?'overdue':s.date===today?'today':'')+'">'+esc(s.status)+'</span></div>'+(lead?'<small>'+money(lead.value)+' · '+esc(lead.details||'Kitchen lead')+'</small>':'')+'<div class="manager-action-row">'+(s.status!=='completed'?'<button class="primary" data-survey-complete="'+esc(s.id)+'">Mark completed</button>':'')+'<button data-survey-open="'+esc(s.customerId)+'">Customer</button></div></div>';}).join('')||'<p class="muted">No surveys recorded.</p>')+'</section>';
+  document.getElementById('surveysBack').onclick=activeUser()?.manager&&userId?()=>renderManagerStaff(userId):renderHome;
+  document.querySelectorAll('[data-survey-open]').forEach(b=>b.onclick=()=>renderCustomerRecord(b.dataset.surveyOpen,()=>renderSurveys(userId)));
+  document.querySelectorAll('[data-survey-complete]').forEach(b=>b.onclick=()=>{const s=surveys.find(x=>x.id===b.dataset.surveyComplete);if(!s)return;requestPin({title:'Complete survey',onSuccess:user=>{s.status='completed';s.completedAt=new Date().toISOString();s.completedBy=user.id;storage.set('bdm_surveys',surveys);const lead=leads.find(l=>l.id===s.leadId);if(lead&&!leadIsClosed(lead)&&normalizeStage(lead)==='Appointment booked'){lead.stage='Design in progress';lead.status='open';lead.events=[...(lead.events||[]),{date:new Date().toISOString(),label:'Survey completed',text:'Survey / appointment completed',by:user.name}];storage.set('bdm_leads',leads);}renderSurveys(userId);}});});
+}
+const surveyTrackedOutcome=renderOutcome;
+renderOutcome=function(type,c){
+  surveyTrackedOutcome(type,c);
+  if(type!=='contact')return;
+  const toggle=document.getElementById('surveyBooked');if(!toggle)return;
+  const wrap=toggle.closest('.permission-toggle');
+  wrap.insertAdjacentHTML('afterend','<div id="surveyBookingFields" hidden><div class="field"><label>Survey / appointment date</label><input id="surveyDate" type="date" min="'+isoToday()+'"></div><div class="field"><label>Survey owner</label><select id="surveyOwner">'+users.filter(u=>u.active!==false).map(u=>'<option value="'+esc(u.id)+'" '+(u.id===activeUserId?'selected':'')+'>'+esc(u.name)+'</option>').join('')+'</select></div></div>');
+  toggle.onchange=()=>{document.getElementById('surveyBookingFields').hidden=!toggle.checked;};toggle.onchange();
+  const save=document.getElementById('saveNext'),original=save.onclick;
+  save.onclick=()=>{
+    if(toggle.checked&&!document.getElementById('surveyDate').value){alert('Choose the survey / appointment date.');return;}
+    const date=document.getElementById('surveyDate')?.value||'',owner=document.getElementById('surveyOwner')?.value||activeUserId,before=activity.length;
+    original();
+    if(toggle.checked){
+      const wait=setInterval(()=>{if(activity.length>before){clearInterval(wait);const lead=surveyLeadForCustomer(c.id);createSurveyRecord({customerId:c.id,customer:c.name,date,ownerId:owner,leadId:lead?.id||'',createdBy:activeUserId});if(lead&&!leadIsClosed(lead)&&['Opportunity','Contacted'].includes(normalizeStage(lead))){lead.stage='Appointment booked';lead.status='open';lead.appointmentDate=date;storage.set('bdm_leads',leads);}}},50);setTimeout(()=>clearInterval(wait),1500);
+    }
+  };
+};
+const surveyTrackedHome=renderHome;
+renderHome=function(){
+  surveyTrackedHome();const u=activeUser();if(!u)return;const counts=surveyCounts(u.id);
+  if(counts.today||counts.overdue){const card=document.createElement('button');card.className='kpi-card '+(counts.overdue?'alert':'warn');card.innerHTML='<span class="kpi-value">'+(counts.today+counts.overdue)+'</span><span class="kpi-label">Surveys needing attention</span><span class="kpi-sub">'+counts.today+' today · '+counts.overdue+' overdue</span>';card.onclick=()=>renderSurveys(u.id);const grid=app.querySelector('.kpi-grid');if(grid)grid.prepend(card);}
+};
+function endOfDayData(){
+  const today=isoToday();
+  return users.filter(u=>u.active!==false).map(user=>{const status=targetStatus(user.id),due=ownDue(user.id),sc=surveyCounts(user.id);return {user,status,overdue:due.filter(f=>f.date<today).length,todayDue:due.filter(f=>f.date===today).length,surveyOverdue:sc.overdue,surveyToday:sc.today};});
+}
+function renderEndOfDay(){
+  if(!activeUser()?.manager)return renderManager();
+  currentView='manager';title.textContent='End of day';setNav('manager');const rows=endOfDayData();
+  app.innerHTML='<section class="form-card"><div class="row"><div><h2>End-of-day review</h2><p class="sub">Target gaps and unfinished work before the working day closes.</p></div><button class="filter-btn" id="eodBack">Manager</button></div></section><section class="form-card">'+rows.map(r=>{const missing=r.status.keys.filter(k=>!r.status.achieved.includes(k));return '<div class="eod-row"><div><b>'+esc(r.user.name)+'</b><small>'+(missing.length?'Targets still needed: '+missing.join(', '):'Daily targets complete')+' · '+r.overdue+' overdue follow-ups · '+r.todayDue+' due today · '+r.surveyOverdue+' overdue surveys</small></div><button class="filter-btn" data-eod-user="'+esc(r.user.id)+'">Review</button></div>';}).join('')+'</section>';
+  document.getElementById('eodBack').onclick=renderManager;
+  document.querySelectorAll('[data-eod-user]').forEach(b=>b.onclick=()=>renderManagerStaff(b.dataset.eodUser));
+}
+const eodManager=renderManager;
+renderManager=function(){
+  eodManager();if(!activeUser()?.manager)return;const first=app.querySelector('.form-card');if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='End-of-day review';btn.onclick=renderEndOfDay;first.append(btn);}
+};
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
