@@ -753,6 +753,53 @@ body{
   .call-category .name,.call-category .msg{margin-top:0;min-height:0}
 }
 
+
+/* Today: a clear primary action and compact daily dashboard. */
+.today-view .topbar{padding:12px 14px 10px}
+.today-view .brand-word{font-size:18px}
+.today-view .eyebrow{font-size:10px}
+.today-view .topbar h1{font-size:26px}
+.today-view .icon-btn{width:42px;height:42px}
+.today-page{padding-top:12px}
+.today-page .period-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;margin-bottom:12px}
+.today-page .period-banner .period-code{font-size:20px;white-space:nowrap}
+.today-page .period-banner .period-dates{font-size:11px;text-align:right;margin:0;max-width:145px}
+.today-start{background:#fff;border:1px solid #d7d4cc;border-radius:6px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.today-start-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.today-start h2{font-size:22px}
+.today-user{font-size:12px;color:#646363;overflow-wrap:anywhere;text-align:right}
+.today-next{font-size:14px;color:#646363;margin:10px 0 14px;line-height:1.45}
+.today-page #startDay{margin:0;min-height:52px;font-size:17px}
+.today-follow-button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:46px;margin-top:10px;border:1px solid #d7d4cc;border-radius:4px;background:#f1f1ef;color:#20201e;padding:10px 12px;text-align:left;font-weight:800}
+.today-follow-count{font-size:12px;font-weight:600;color:#646363;text-align:right}
+.today-follow-count.overdue{color:#b31f28;font-weight:800}
+.today-page .dashboard-block{margin-top:16px}
+.today-page .dashboard-title{font-size:15px;margin:0 0 9px}
+.today-page .target-grid{grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
+.today-page .target-card{padding:11px 10px;min-width:0}
+.today-page .target-card small{font-size:12px}
+.today-page .target-card b{font-size:21px;margin-top:4px}
+.today-page .target-progress{height:6px;margin-top:8px}
+.today-page .target-progress span{background:#d22630}
+.today-page .streak-strip{font-size:13px;padding:9px 11px;margin-top:8px;border-radius:4px}
+.today-page .action-lanes{margin:16px 0 0;gap:9px}
+.today-page .action-lane{min-height:110px;padding:13px}
+.today-page .action-lane .lane-icon{float:right;font-size:22px;margin:0}
+.today-page .action-lane .lane-value{font-size:28px}
+.today-page .action-lane .lane-label{font-size:15px;margin-top:7px}
+.today-page .action-lane .lane-sub{font-size:11px}
+.today-page .nurture-card{padding:12px}
+.today-page .nurture-card b{font-size:24px}
+.today-page .nurture-card span{font-size:14px}
+.today-page .nurture-card small{font-size:11px;line-height:1.4}
+.today-page .kpi-card{min-height:104px;padding:13px}
+.today-page .kpi-card .kpi-value{font-size:25px}
+.today-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:14px;border-top:1px solid #d7d4cc}
+.today-tools button{min-height:44px;background:#fff;border:1px solid #d7d4cc;border-radius:4px;padding:10px 12px;color:#20201e;font-size:13px;font-weight:700}
+.today-tools #switchDayUser{background:transparent;border-color:transparent;color:#646363}
+.today-page button:focus-visible{outline:2px solid #d22630;outline-offset:3px}
+@media(max-width:360px){.today-page .period-banner{gap:8px}.today-page .period-banner .period-code{font-size:18px}.today-page .period-banner .period-dates{font-size:10px;max-width:130px}}
+
 </style>
 </head>
 <body>
@@ -1521,7 +1568,7 @@ const homeTemplate = document.getElementById('homeTemplate');
 function escapeHtml(v){return String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));}
 function money(v){ return '£' + Number(v || 0).toLocaleString('en-GB', {maximumFractionDigits:0}); }
 function n(v){ const x = Number(v); return Number.isFinite(x) ? x : 0; }
-function setNav(view){ document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view)); }
+function setNav(view){ document.body.classList.toggle('today-view',view==='home');app.classList.toggle('today-page',view==='home');document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view)); }
 function latestSnapshot(){ return snapshots.length ? snapshots[snapshots.length-1] : null; }
 
 function classifyCustomer(c, prevMap){
@@ -2950,7 +2997,13 @@ const originalHome=renderHome;
 renderHome=function(){
   originalHome();
   const u=activeUser(), due=u?ownDue(u.id):[], next=u?dailyQueue()[0]:null;
-  app.insertAdjacentHTML('afterbegin',`<section class="form-card"><h2>Start my day</h2><p>${u?esc(u.name)+' · '+due.filter(f=>f.date<isoToday()).length+' overdue follow-ups':'Select your user to load your daily targets and follow-ups.'}</p><p class="muted">${next?'Next customer: '+esc(next.name):u?'No calls waiting today.':''}</p><button class="wide-btn" id="startDay">${u?'Start my day':'Select user and start'}</button><button class="wide-btn secondary" id="switchDayUser">Switch user</button><button class="wide-btn secondary" id="myFollowups">My follow-ups</button><button class="wide-btn secondary" id="reportCentre">Reports and backups</button></section>`);
+  const period=app.querySelector('.period-banner');
+  period.querySelector('.user-chip')?.parentElement.remove();
+  const overdue=due.filter(f=>f.date<isoToday()).length,today=due.filter(f=>f.date===isoToday()).length;
+  period.insertAdjacentHTML('afterend',`<section class="today-start"><div class="today-start-heading"><h2>Start my day</h2><span class="today-user">${u?esc(u.name):'No user selected'}</span></div><p class="today-next">${next?'Next customer: '+esc(next.name):u?'No calls waiting today.':'Select your user to load your daily targets and follow-ups.'}</p><button class="wide-btn" id="startDay">${u?'Start my day':'Select user and start'}</button><button class="today-follow-button" id="myFollowups"><span>My follow-ups</span><span class="today-follow-count ${overdue?'overdue':''}">${today} today · ${overdue} overdue</span></button></section>`);
+  const targets=[...app.querySelectorAll('.dashboard-block')].find(block=>block.querySelector('.target-grid'));
+  if(targets)app.insertBefore(targets,app.querySelector('.action-lanes'));
+  app.insertAdjacentHTML('beforeend','<div class="today-tools"><button id="reportCentre">Reports and backups</button><button id="switchDayUser">Switch user</button></div>');
   document.getElementById('startDay').onclick=()=>u?openQueue('day'):requestPin({title:'Start my day',subtitle:'Select your user',onSuccess:()=>openQueue('day')});
   const switchUser=document.getElementById('switchDayUser');
   if(cloud.enabled){switchUser.textContent='Sign out';switchUser.onclick=async()=>{try{await cloud.flush();if(cloud.pending)throw Error('Save or download your pending changes before signing out.');await Clerk.signOut({redirectUrl:location.origin+'/'});}catch(error){alert(error.message);}};}
