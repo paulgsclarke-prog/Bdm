@@ -1031,6 +1031,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .snapshot-history-grid div{min-width:0}.snapshot-history-grid small{display:block;color:#646363}.snapshot-history-grid b{display:block;font-size:13px;margin-top:2px}
 .movement-up{color:#246243}.movement-down{color:#a02d34}
 @media(max-width:430px){.snapshot-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* V34 campaign completion */
+.campaign-progress{height:7px;background:#e6e4de;border-radius:999px;overflow:hidden;margin-top:8px}
+.campaign-progress span{display:block;height:100%;background:#0f4a43}
+.campaign-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:9px}
+.campaign-kpis div{background:#f5f5f1;border-radius:4px;padding:8px;text-align:center}
+.campaign-kpis b{display:block;font-size:15px}.campaign-kpis small{display:block;color:#646363;font-size:10px;margin-top:2px}
+@media(max-width:430px){.campaign-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -4777,6 +4784,36 @@ renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCusto
   section.innerHTML='<div class="row"><h2>Account change history</h2><span class="badge">'+history.length+' snapshots</span></div><div class="snapshot-history">'+history.slice(0,8).map((x,i)=>{const c=x.customer,older=history[i+1]?.customer,salesMove=older?n(c.salesMAT)-n(older.salesMAT):null,txMove=older?n(c.transactionsMAT)-n(older.transactionsMAT):null;return '<div class="snapshot-history-item"><div class="row"><b>'+esc(x.snapshot.date)+'</b>'+(salesMove!=null?'<span class="'+(salesMove>0?'movement-up':salesMove<0?'movement-down':'')+'">'+(salesMove>0?'+':'')+money(salesMove)+'</span>':'')+'</div><div class="snapshot-history-grid"><div><small>MAT sales</small><b>'+money(c.salesMAT)+'</b></div><div><small>Transactions</small><b>'+n(c.transactionsMAT)+(txMove!=null?' ('+(txMove>0?'+':'')+txMove+')':'')+'</b></div><div><small>Recency</small><b>'+n(c.recency)+'</b></div><div><small>Loyalty</small><b>'+n(c.loyalty)+'%</b></div></div></div>';}).join('')+'</div>';
   const transactions=[...app.querySelectorAll('.customer-record-section')].find(x=>x.querySelector('h2')?.textContent==='Recent transactions');
   if(transactions)transactions.insertAdjacentElement('afterend',section);else app.append(section);
+};
+
+
+/* V34: campaign completion and conversion metrics. */
+function campaignProgress(c){
+  const workflow='campaign:'+c.id,acts=activity.filter(a=>a.workflow===workflow);
+  const contactedIds=new Set(acts.map(a=>String(a.customerId||'')).filter(Boolean));
+  const remaining=campaignAudience(c),remainingIds=new Set(remaining.map(x=>String(x.id)));
+  const audienceIds=new Set([...contactedIds,...remainingIds]);
+  const conversations=acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type));
+  const conversationIds=new Set(conversations.map(a=>String(a.customerId||'')));
+  const attributed=leads.filter(l=>conversationIds.has(String(l.customerId))&&acts.some(a=>String(a.customerId)===String(l.customerId)&&a.iso&&l.createdAt&&Math.abs(new Date(l.createdAt)-new Date(a.iso))<86400000));
+  const won=attributed.filter(l=>normalizeStage(l)==='Won');
+  const total=audienceIds.size,done=contactedIds.size;
+  return {total,done,remaining:Math.max(0,total-done),pct:total?Math.min(100,done/total*100):0,calls:acts.length,conversations:conversations.length,conversationRate:acts.length?conversations.length/acts.length*100:0,leads:attributed.length,leadRate:conversations.length?attributed.length/conversations.length*100:0,won:won.length,wonValue:won.reduce((s,l)=>s+wonValueOf(l),0)};
+}
+const progressCampaignManager=renderCampaignManager;
+renderCampaignManager=function(){
+  progressCampaignManager();
+  document.querySelectorAll('.campaign-card').forEach(card=>{
+    const start=card.querySelector('[data-campaign-start]');if(!start)return;
+    const campaign=campaigns.find(c=>c.id===start.dataset.campaignStart);if(!campaign)return;
+    const p=campaignProgress(campaign),meta=document.createElement('div');
+    meta.innerHTML='<div class="campaign-progress"><span style="width:'+p.pct.toFixed(1)+'%"></span></div><div class="row" style="margin-top:5px"><small>'+p.done+' of '+p.total+' customers worked</small><b>'+p.pct.toFixed(0)+'%</b></div><div class="campaign-kpis"><div><b>'+p.remaining+'</b><small>Remaining</small></div><div><b>'+p.conversationRate.toFixed(0)+'%</b><small>Conversation</small></div><div><b>'+p.leadRate.toFixed(0)+'%</b><small>Lead rate</small></div><div><b>'+money(p.wonValue)+'</b><small>Won value</small></div></div>';
+    const actions=card.querySelector('.campaign-actions');if(actions)actions.insertAdjacentElement('beforebegin',meta);else card.append(meta);
+  });
+};
+const progressCampaignPerformance=campaignPerformance;
+campaignPerformance=function(){
+  return progressCampaignPerformance().map(c=>({...c,...campaignProgress(c)})).sort((a,b)=>b.wonValue-a.wonValue||b.pct-a.pct||b.leads-a.leads);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
