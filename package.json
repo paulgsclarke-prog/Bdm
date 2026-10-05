@@ -1,0 +1,8 @@
+{
+  "name": "bdm-shared-data",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=24"},
+  "scripts": {"test": "node --test tests/*.test.mjs"},
+  "dependencies": {"@clerk/backend": "^3.0.0", "@neondatabase/serverless": "^1.0.2"}
+}

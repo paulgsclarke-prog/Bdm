@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {memberFromUser,validateData,authoriseWrite} from '../lib/policy.mjs';
+const staff={userId:'U2',manager:false},manager={userId:'U1',manager:true};
+test('sign-up alone grants no depot access',()=>assert.throws(()=>memberFromUser({id:'user_1',publicMetadata:{bdmUserId:'U1',bdmRole:'manager'}}),{status:403}));
+test('trusted mapping preserves legacy user identity',()=>assert.deepEqual(memberFromUser({id:'user_1',privateMetadata:{bdmUserId:'U1',bdmRole:'manager'}}),{clerkUserId:'user_1',userId:'U1',manager:true}));
+test('reject unknown keys and malformed snapshots',()=>{assert.throws(()=>validateData({bdm_active_user:'U1'}),{status:400});assert.throws(()=>validateData({bdm_snapshots:[{}]}),{status:400});});
+test('staff cannot promote themselves or change reports',()=>{assert.throws(()=>authoriseWrite({}, {bdm_users:[{id:'U2',manager:true}]},staff),{status:403});assert.throws(()=>authoriseWrite({}, {bdm_snapshots:[]},staff),{status:403});});
+test('staff append their own calls without rewriting history',()=>{const old={bdm_activity:[{audit:{userId:'U1'},detail:'saved'}]};authoriseWrite(old,{bdm_activity:[...old.bdm_activity,{audit:{userId:'U2'}}]},staff);assert.throws(()=>authoriseWrite(old,{bdm_activity:[{audit:{userId:'U2'}}]},staff),{status:403});});
+test('lead updates retain creator credit and cannot delete records',()=>{const l={id:'L1',audit:{userId:'U1'},createdAt:'2026-10-05',stage:'Opportunity'};authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,stage:'Quoted'}]},staff);assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,audit:{userId:'U2'}}]},staff),{status:403});assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[]},staff),{status:403});});
+test('staff target history remains per-user',()=>{authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:1},U2:{a:2}}},staff);assert.throws(()=>authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:2}}},staff),{status:403});});
+test('duplicate IDs are rejected',()=>assert.throws(()=>validateData({bdm_leads:[{id:'L1'},{id:'L1'}]}),{status:400}));
+test('manager can migrate reports and settings',()=>authoriseWrite({}, {bdm_users:[{id:'U1',manager:true}],bdm_snapshots:[{customers:[]}]},manager));
