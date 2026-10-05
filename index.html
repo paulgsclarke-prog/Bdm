@@ -3166,6 +3166,35 @@ async function restoreBackup(file){
     location.reload();
   }catch(e){status.textContent='Restore failed: '+e.message;}
 }
+
+const settingsWithStaffLogins=renderSettings;
+renderSettings=function(){
+  settingsWithStaffLogins();
+  if(!cloud.enabled||!cloud.member.manager)return;
+  const card=document.createElement('section');card.className='settings-card';
+  card.innerHTML='<h2>Staff logins</h2><p>Link a colleague’s verified login to their BDM staff user. Their targets and activity stay with that user.</p><button class="save" id="staffLoginsBtn">Manage staff logins</button>';
+  app.prepend(card);document.getElementById('staffLoginsBtn').onclick=renderStaffLogins;
+};
+function renderStaffLogins(){
+  if(!cloud.enabled||!cloud.member.manager)return;
+  currentView='settings';title.textContent='Staff logins';setNav('');
+  const staff=users.filter(u=>u.active!==false&&!u.manager);
+  app.innerHTML='<section class="settings-card"><h2>Link a staff login</h2><p>First add the colleague as a staff user in Settings. Then ask them to open <a href="/connect.html" target="_blank" rel="noopener">Secure account setup</a> and create and verify their own account.</p><form id="staffLoginForm"><div class="setting-row"><label for="staffLoginUser">BDM staff user</label><select id="staffLoginUser" required>'+staff.map(u=>'<option value="'+esc(u.id)+'">'+esc(u.name)+(u.loginEmail?' — '+esc(u.loginEmail):'')+'</option>').join('')+'</select></div><div class="setting-row"><label for="staffLoginEmail">Verified primary login email</label><input id="staffLoginEmail" type="email" maxlength="254" autocomplete="off" required></div><p class="sub">Linking grants access to the shared depot data with staff permissions. Staff cannot change manager settings.</p><button class="save" id="linkStaffLogin" type="submit" '+(!staff.length?'disabled':'')+'>Link login</button></form><p id="staffLoginStatus" role="status">'+(!staff.length?'Add an active staff user in Settings first.':'')+'</p><button class="close" id="staffLoginBack">Back to Settings</button></section>';
+  document.getElementById('staffLoginBack').onclick=renderSettings;
+  document.getElementById('staffLoginForm').onsubmit=async event=>{
+    event.preventDefault();const button=document.getElementById('linkStaffLogin'),status=document.getElementById('staffLoginStatus');button.disabled=true;
+    try{
+      if(cloud.blocked)throw Error('Refresh shared data before linking a login.');
+      await cloud.flush();if(cloud.pending||cloud.blocked)throw Error('Save your changes before linking a login.');
+      status.textContent='Linking login…';
+      const token=await Clerk.session.getToken();
+      const response=await fetch('/api/members',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({revision:cloud.revision,userId:document.getElementById('staffLoginUser').value,email:document.getElementById('staffLoginEmail').value.trim()})});
+      const result=await response.json();if(!response.ok){if(response.status===409||response.status===503)cloud.blocked=true;throw Error(result.error||'Unable to link login');}
+      status.textContent='Login linked. The colleague can refresh Secure account setup and open BDM.';cloud.pending=false;location.reload();
+    }catch(error){status.textContent=error.message;button.disabled=false;}
+  };
+}
+
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
 document.getElementById('settingsBtn').onclick=renderSettings;

@@ -9,7 +9,7 @@ export default endpoint(async(req,res)=>{
   const [current]=await sql`SELECT revision,data FROM bdm_shared_state WHERE id=1`;
   if(!current)throw new HttpError(503,'Database schema has not been installed');
   const user=current.data.bdm_users?.find(u=>u.id===member.userId);
-  if(current.revision>0&&(!user||user.active===false||Boolean(user.manager)!==member.manager))throw new HttpError(403,'BDM access is inactive or mismatched');
+  if(current.revision>0&&(!user||user.active===false||Boolean(user.manager)!==member.manager||(user.clerkUserId&&user.clerkUserId!==member.clerkUserId)))throw new HttpError(403,'BDM access is inactive or mismatched');
   if(req.method==='GET')return res.status(200).json({...current,member});
   const body=typeof req.body==='string'?JSON.parse(req.body):req.body;
   if(!Number.isSafeInteger(body?.revision)||body.revision<0)throw new HttpError(400,'A revision is required');
