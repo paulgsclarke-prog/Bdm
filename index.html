@@ -1193,8 +1193,11 @@ function parseYtdRows(rows,columns){
   const customers=[];
   for(const row of rows.slice(columns.header+1)){
     const customer=String(row[columns.customer]??'').trim();
-    if(!customer || /^(grand\s*total|total|subtotal)$/i.test(customer)) continue;
-    if(row[columns.sales]==null || String(row[columns.sales]).trim()==='') continue;
+    if(/^(grand\s*total|total|subtotal)$/i.test(customer)) continue;
+    if(!row.some(v=>v!=null&&String(v).trim()))continue;
+    if(!customer)throw new Error('YTD report contains a row without an account.');
+    const value=row[columns.sales],numeric=String(value??'').replace(/[£$,\s()]/g,'');
+    if(!numeric||!Number.isFinite(Number(numeric)))throw new Error('Missing or invalid YTD sales for account '+customer);
     customers.push({customer,name:columns.name>=0?String(row[columns.name]??'').trim():'',salesYTD:reportNumber(row[columns.sales])});
   }
   return customers;
@@ -1231,7 +1234,7 @@ function customerFirstSeenDate(id){
   return hit?.date || null;
 }
 function daysOpenForCustomer(c){
-  const d=customerFirstSeenDate(c.customer) || (c.openDate||null);
+  const d=c.openDate||null;
   if(d){ const dd=localDateOnly(d); if(dd) return Math.max(0,daysBetween(dd,localDateOnly(new Date()))); }
   const yr=Number(c.openYear);
   if(Number.isFinite(yr) && yr===new Date().getFullYear()) return 30;
@@ -1243,12 +1246,12 @@ function nurtureRecord(id){
 }
 function recentSpend30(id){
   const today=localDateOnly(new Date());
-  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)<=30)
+  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)>=0 && daysBetween(localDateOnly(t.date),today)<30)
     .reduce((s,t)=>s+n(t.value),0);
 }
 function recentTxFor(id){
   const today=localDateOnly(new Date());
-  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)<=30)
+  return recentTransactions.filter(t=>String(t.customerId)===String(id) && localDateOnly(t.date) && daysBetween(localDateOnly(t.date),today)>=0 && daysBetween(localDateOnly(t.date),today)<30)
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 }
 function top20Set(){ return new Set(top20Customers().map(c=>c.customer)); }
@@ -1937,7 +1940,8 @@ function renderLeadEditor(id){
         l.ownerName=(users.find(u=>u.id===l.ownerId)||{}).name||'Unassigned';
         l.notes=document.getElementById('editNotes').value;
         l.lossReason=stage==='Lost'?document.getElementById('lossReason').value:'';
-        l.audit=auditStamp(user,`Lead stage changed to ${stage}`);
+        l.events=[...(l.events||[]),{date:new Date().toISOString(),label:'Lead updated · '+stage,text:[l.notes,'Follow-up: '+(l.followUpDate||'None'),'Owner: '+l.ownerName].join(' · '),by:user.name}];
+        l.updatedAudit=auditStamp(user,`Lead stage changed to ${stage}`);
         storage.set('bdm_leads',leads);
         renderLeads('all');
       }
@@ -2047,11 +2051,12 @@ function renderHistory(){
     <div class="history-card"><div class="sub">${a.time}</div><h2>${a.customer}</h2><span class="badge">${a.type}</span><p>${a.detail}</p>${a.audit?`<div class="audit-line"><b>${a.audit.userName}</b> · ${a.audit.display}</div>`:''}</div>`).join('')}</section>`;
 }
 
-function openQueue(key){ queueKey=key; queueIndex=0; selectedOutcome=null; renderCustomer(); }
+let queueSnapshot=null,queueOwnerId=null;
+function openQueue(key){ queueOwnerId=activeUserId;queueKey=key; queueIndex=0; selectedOutcome=null; queueSnapshot=key==='day'?dailyQueue():[...(liveGroups()[key]||[])]; renderCustomer(); }
 
 function renderCustomer(successMsg=''){
   const groups=liveGroups();
-  const q = groups[queueKey] || [];
+  const q = queueSnapshot || groups[queueKey] || [];
   if(!q.length){ app.innerHTML='<div class="success">No customers in this queue.</div><button class="wide-btn" id="backGroups">Back to customer groups</button>'; document.getElementById('backGroups').onclick=renderGroups; return; }
   if(queueIndex>=q.length){
     app.innerHTML=`<div class="success">Queue complete. ${q.length} customers reviewed.</div><button class="wide-btn" id="backGroups">Back to customer groups</button>`;
@@ -2371,9 +2376,9 @@ function renderManager(){
   const today=isoToday();
   const activeUsers=users.filter(x=>x.active!==false);
   const staff=activeUsers.map(user=>{
-    const owned=leads.filter(l=>l.ownerId===user.id && l.status!=='lost');
-    const value=owned.reduce((s,l)=>s+n(l.value),0);
-    const margin=owned.reduce((s,l)=>s+n(l.margin),0);
+    const owned=leads.filter(l=>l.ownerId===user.id);
+    const value=owned.filter(l=>l.status!=='lost').reduce((s,l)=>s+n(l.value),0);
+    const margin=owned.filter(l=>l.status!=='lost').reduce((s,l)=>s+n(l.margin),0);
     const overdue=owned.filter(l=>l.status!=='won' && l.status!=='lost' && l.followUpDate && l.followUpDate<today).length;
     const dueToday=owned.filter(l=>l.status!=='won' && l.status!=='lost' && l.followUpDate===today).length;
     const open=owned.filter(l=>l.status!=='won' && l.status!=='lost').length;
@@ -2698,7 +2703,7 @@ function renderSettings(){
 
   document.getElementById('ytdFileInput').onchange=ev=>{
     const file=ev.target.files[0];if(!file) return;
-    requestPin({title:'Upload YTD report',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>handleYtdImport({target:{files:[file]}})});
+    requestPin({title:'Upload YTD report',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{renderImport();validatedReport('ytd',file);}});
   };
   document.getElementById('saveNurtureSettings').onclick=()=>{
     requestPin({title:'Save nurture settings',subtitle:'Manager PIN required',managerOnly:true,onSuccess:()=>{
@@ -2792,9 +2797,6 @@ function wireCommon(){
   document.querySelectorAll('[data-open-group]').forEach(b=>b.onclick=()=>openQueue(b.dataset.openGroup));
   document.querySelectorAll('[data-view-jump]').forEach(b=>b.onclick=()=>go(b.dataset.viewJump));
 }
-function go(view){
-  if(view==='home')syncManagerSession();
-
 document.querySelectorAll('[data-pin]').forEach(btn=>{
   btn.onclick=()=>{
     const v=btn.dataset.pin;
@@ -2808,7 +2810,9 @@ document.querySelectorAll('[data-pin]').forEach(btn=>{
 document.getElementById('pinCancel').onclick=closePinModal;
 document.getElementById('pinUserSelect').onchange=()=>{pinBuffer='';updatePinDots();document.getElementById('pinError').textContent='';};
 
-renderHome();
+function go(view){
+  if(view==='home')syncManagerSession();
+  renderHome();
   if(view==='calls')renderCalls();
   if(view==='groups')renderGroups();
   if(view==='reports')renderReports();
@@ -2818,6 +2822,197 @@ renderHome();
   if(view==='stats')renderStats();
   if(view==='settings')renderSettings();
   if(view==='manager')renderManager();
+}
+// Daily work, customer timelines, report centre and portable backups.
+let followups=storage.get('bdm_followups',[]);
+let reportMetadata=storage.get('bdm_report_metadata',{});
+if(!reportMetadata.customers&&latestSnapshot())reportMetadata.customers={filename:latestSnapshot().filename,uploadedAt:latestSnapshot().date,rows:latestSnapshot().customers.length,warnings:[]};
+if(!reportMetadata.ytd&&ytdReport?.customers)reportMetadata.ytd={filename:ytdReport.filename||'YTD report',uploadedAt:ytdReport.uploadedAt||ytdReport.date||isoToday(),rows:ytdReport.customers.length,warnings:[]};
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function ownDue(userId=activeUserId){
+  return [...followups.filter(f=>!f.completedAt).map(f=>({...f,kind:'task'})),...leads.filter(l=>!['won','lost'].includes(l.status)&&l.followUpDate).map(l=>({id:l.id,customerId:l.customerId,customer:l.customer,ownerId:l.ownerId,date:l.followUpDate,reason:'Quote '+(l.quoteNo||'')+' · '+(l.nextActionReason||l.details||l.stage),kind:'lead'}))]
+    .filter(f=>(!userId||f.ownerId===userId)&&f.date<=isoToday()).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function allCallReasons(c){
+  const raw=currentCustomerModel()?.enriched.find(x=>String(x.customer)===String(c.id));
+  const reasons=[];
+  if(top20Set().has(String(c.id))&&normalContactDue(c.id)) reasons.push({key:'top20',label:'Top 20 customer',reason:nurtureSettings.top20Message});
+  const p=nurtureRecord(c.id);
+  if(raw){
+    if(daysOpenForCustomer(raw)<60&&n(raw.transactionsMAT)<3&&p.newContacts<4) reasons.push({key:'newNurture',label:'New account nurture',reason:nurtureSettings.newOffers[p.newContacts]||'Check current and upcoming work'});
+    if(n(raw.recency)>=12&&n(raw.recency)<15&&(!p.lastOldContact||daysBetween(localDateOnly(p.lastOldContact),localDateOnly(new Date()))>=n(nurtureSettings.oldSpacingDays||18))) reasons.push({key:'oldNurture',label:'Old account nurture',reason:nurtureSettings.oldOffers[Math.min(p.oldContacts,nurtureSettings.oldOffers.length-1)]});
+  }
+  const latest=recentTxFor(c.id)[0]?.date;
+  if(recentSpend30(c.id)>=n(nurtureSettings.thanksThreshold)&&latest&&(!p.thanksHandledThrough||latest>p.thanksHandledThrough)) reasons.push({key:'thanks',label:'Given Thanks',reason:money(recentSpend30(c.id))+' spent in the last 30 days'});
+  if(c.workflow&&!reasons.some(r=>r.key===c.workflow)) reasons.push({key:c.workflow,label:c.workflowLabel||c.workflow,reason:c.offer});
+  ownDue(queueOwnerId||activeUserId).filter(f=>String(f.customerId)===String(c.id)).forEach(f=>reasons.push({key:f.kind+':'+f.id,label:f.date<isoToday()?'Overdue follow-up':'Due today',reason:f.date+' · '+f.reason}));
+  return reasons;
+}
+function dailyQueue(){
+  const groups=liveGroups(), seen=new Set(), out=[];
+  const add=c=>{if(c&&!seen.has(String(c.id))){seen.add(String(c.id));out.push(c);}};
+  const candidates=Object.values(groups).flat();
+  ownDue().forEach(f=>add(candidates.find(c=>String(c.id)===String(f.customerId))||{id:f.customerId,name:f.customer,offer:f.reason,pattern:'Follow-up',lastnote:'',months:0,sales:0,tx:0}));
+  ['top20','critical','oldNurture','newNurture','thanks','atrisk','new','growth','normal'].forEach(k=>(groups[k]||[]).forEach(c=>{
+    if(!activity.some(a=>String(a.customerId)===String(c.id)&&String(a.iso||'').slice(0,10)===isoToday()&&['Spoke to customer','Quote given'].includes(a.type)))add(c);
+  }));
+  return out;
+}
+const originalHome=renderHome;
+renderHome=function(){
+  originalHome();
+  const u=activeUser(), due=u?ownDue(u.id):[], next=u?dailyQueue()[0]:null;
+  app.insertAdjacentHTML('afterbegin',`<section class="form-card"><h2>Start my day</h2><p>${u?esc(u.name)+' · '+due.filter(f=>f.date<isoToday()).length+' overdue follow-ups':'Select your user to load your daily targets and follow-ups.'}</p><p class="muted">${next?'Next customer: '+esc(next.name):u?'No calls waiting today.':''}</p><button class="wide-btn" id="startDay">${u?'Start my day':'Select user and start'}</button><button class="wide-btn secondary" id="switchDayUser">Switch user</button><button class="wide-btn secondary" id="myFollowups">My follow-ups</button><button class="wide-btn secondary" id="reportCentre">Reports and backups</button></section>`);
+  document.getElementById('startDay').onclick=()=>u?openQueue('day'):requestPin({title:'Start my day',subtitle:'Select your user',onSuccess:()=>openQueue('day')});
+  document.getElementById('switchDayUser').onclick=()=>requestPin({title:'Switch user',subtitle:'Load your targets and follow-ups',onSuccess:renderHome});
+  document.getElementById('myFollowups').onclick=()=>u?renderFollowups():requestPin({title:'My follow-ups',onSuccess:renderFollowups});
+  document.getElementById('reportCentre').onclick=renderImport;
+};
+const originalCustomer=renderCustomer;
+renderCustomer=function(msg=''){
+  originalCustomer(msg);
+  const c=queueSnapshot?.[queueIndex];
+  if(!c||queueIndex>=queueSnapshot.length)return;
+  const card=app.querySelector('.customer-card');
+  if(!card)return;
+  const reasons=allCallReasons(c);
+  card.querySelector('.why-call')?.remove();
+  card.insertAdjacentHTML('afterbegin',`<div class="why-call"><small>WHY AM I CALLING?</small>${reasons.map(r=>`<b>${esc(r.label)}</b><span>${esc(r.reason)}</span>`).join('')||'<b>Check current work and upcoming jobs</b>'}</div><button class="wide-btn secondary" id="customerTimeline">Customer history</button>`);
+  document.getElementById('customerTimeline').onclick=()=>renderCustomerHistory(c.id,c.name,()=>renderCustomer());
+};
+function renderCustomerHistory(id,name,back=renderHistory){
+  title.textContent='Customer history';setNav('');
+  const events=[...activity.filter(a=>String(a.customerId)===String(id)).map(a=>({date:a.iso,label:a.type,text:[a.detail,a.deal&&'Offer: '+a.deal,a.follow&&'Next action: '+a.follow].filter(Boolean).join(' · '),by:a.audit?.userName})),...recentTransactions.filter(t=>String(t.customerId)===String(id)).map(t=>({date:t.date,label:'Purchase · '+money(t.value),text:t.detail||t.category||''})),...leads.filter(l=>String(l.customerId)===String(id)).flatMap(l=>[{date:l.createdAt,label:'Quote '+(l.quoteNo||'')+' · '+l.stage,text:(l.details||'')+' · '+money(l.value),by:l.ownerName},...(l.events||[])]),...followups.filter(f=>String(f.customerId)===String(id)).map(f=>({date:f.createdAt,label:f.completedAt?'Follow-up completed':'Follow-up scheduled for '+f.date,text:f.reason,by:users.find(u=>u.id===f.ownerId)?.name}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  app.innerHTML=`<section class="form-card"><h2>${esc(name)}</h2><div class="sub">Account ${esc(id)}</div><button class="wide-btn secondary" id="timelineBack">Back</button></section><section class="list">${events.map(e=>`<div class="history-card"><div class="sub">${esc(e.date)}${e.by?' · '+esc(e.by):''}</div><h2>${esc(e.label)}</h2><p>${esc(e.text)}</p></div>`).join('')||'<p>No history recorded yet.</p>'}</section>`;
+  document.getElementById('timelineBack').onclick=back;
+}
+renderHistory=function(){
+  title.textContent='Activity';setNav('history');
+  app.innerHTML=`<section class="form-card"><label>Find a customer<input id="historySearch" placeholder="Account or customer name"></label></section><section class="list" id="historyResults"></section>`;
+  const paint=()=>{const search=document.getElementById('historySearch').value.toLowerCase();const found=new Map();[...activity,...leads,...followups].forEach(a=>{if((String(a.customer||'')+' '+a.customerId).toLowerCase().includes(search))found.set(String(a.customerId),a.customer);});document.getElementById('historyResults').innerHTML=[...found].map(([id,name])=>`<button class="wide-btn secondary" data-history-id="${esc(id)}">${esc(name)} · ${esc(id)}</button>`).join('')||'<p>No matching customers.</p>';document.querySelectorAll('[data-history-id]').forEach(b=>b.onclick=()=>renderCustomerHistory(b.dataset.historyId,found.get(b.dataset.historyId)));};
+  document.getElementById('historySearch').oninput=paint;paint();
+};
+function renderFollowups(userId=activeUserId){
+  title.textContent='Follow-ups';setNav('');
+  const tasks=[...followups.filter(f=>!f.completedAt&&f.ownerId===userId).map(f=>({...f,kind:'task'})),...leads.filter(l=>l.ownerId===userId&&!['won','lost'].includes(l.status)&&l.followUpDate).map(l=>({id:l.id,date:l.followUpDate,customerId:l.customerId,customer:l.customer,reason:l.nextActionReason||l.details||l.stage,kind:'lead'}))].sort((a,b)=>a.date.localeCompare(b.date));
+  app.innerHTML=`<section class="form-card"><h2>${esc(users.find(u=>u.id===userId)?.name||'My')} follow-ups</h2><button class="wide-btn secondary" id="followHome">Back to Today</button></section><section class="list">${tasks.map((f,i)=>`<div class="history-card"><span class="badge">${f.date<isoToday()?'Overdue':f.date===isoToday()?'Today':'Scheduled'}</span><h2>${esc(f.customer)}</h2><p>${esc(f.date)} · ${esc(f.reason)}</p><button class="wide-btn" data-follow-call="${i}">Call customer</button>${f.kind==='lead'?`<button class="wide-btn secondary" data-follow-lead="${esc(f.id)}">Update lead</button>`:''}</div>`).join('')||'<p>No follow-ups scheduled.</p>'}</section>`;
+  document.getElementById('followHome').onclick=renderHome;
+  document.querySelectorAll('[data-follow-call]').forEach(b=>b.onclick=()=>{const f=tasks[+b.dataset.followCall];const c=Object.values(liveGroups()).flat().find(c=>String(c.id)===String(f.customerId))||{id:f.customerId,name:f.customer,offer:f.reason,pattern:'Follow-up',lastnote:'',months:0,sales:0,tx:0};queueOwnerId=userId;queueSnapshot=[c];queueKey='day';queueIndex=0;renderCustomer();});
+  document.querySelectorAll('[data-follow-lead]').forEach(b=>b.onclick=()=>renderLeadEditor(b.dataset.followLead));
+}
+const originalOutcome=renderOutcome;
+renderOutcome=function(type,c){
+  originalOutcome(type,c);
+  const follow=document.getElementById('follow');
+  if(follow){follow.min=isoToday();follow.parentElement.insertAdjacentHTML('beforeend',`<div class="pill-row"><button type="button" class="pill" data-next-days="1">Tomorrow</button><button type="button" class="pill" data-next-days="7">Next week</button></div><label>Next action reason<input id="nextReason" placeholder="What needs to happen?"></label><label>Next action owner<select id="nextOwner">${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}" ${u.id===activeUserId?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>`);document.querySelectorAll('[data-next-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.nextDays));follow.value=workingDayKey(d);});}
+  const reasons=allCallReasons(c).filter(r=>['newNurture','oldNurture','thanks'].includes(r.key)||r.key.includes(':'));
+  if(type==='contact')document.getElementById('saveNext').insertAdjacentHTML('beforebegin',`<section class="form-card"><h2>Actions covered in this conversation</h2>${reasons.map(r=>`<label style="display:block;margin:12px 0"><input type="checkbox" data-covered="${esc(r.key)}" checked> ${esc(r.label)} · ${esc(r.reason)}</label>`).join('')||'<p>Period contact will be recorded.</p>'}</section>`);
+  if(type==='quote'){const owner=document.getElementById('nextOwner');owner.value=document.getElementById('leadOwner').value;owner.onchange=()=>{document.getElementById('leadOwner').value=owner.value;};document.getElementById('leadOwner').onchange=()=>{owner.value=document.getElementById('leadOwner').value;};}
+  const save=document.getElementById('saveNext').onclick;
+  document.getElementById('saveNext').onclick=()=>{
+    if(follow?.value&&follow.value<isoToday()){alert('Choose today or a future follow-up date.');return;}
+    if(follow?.value&&!document.getElementById('nextReason').value.trim()){alert('Add a reason for the next action.');return;}
+    pendingNextAction={customerId:c.id,customer:c.name,date:follow?.value||'',reason:document.getElementById('nextReason')?.value.trim()||'',ownerId:document.getElementById('nextOwner')?.value||activeUserId,deal:document.getElementById('deal')?.value||'',covered:[...document.querySelectorAll('[data-covered]:checked')].map(e=>e.dataset.covered),type};save();pendingNextAction=null;
+  };
+};
+let pendingNextAction=null;
+const originalPin=requestPin;
+requestPin=function(options){
+  const action=pendingNextAction;pendingNextAction=null;
+  if(!action)return originalPin(options);
+  originalPin({...options,onSuccess:user=>{
+    const before=JSON.parse(JSON.stringify(nurtureRecord(action.customerId)));
+    const completedAt=new Date().toISOString();
+    if(action.type==='contact'){
+      action.covered.filter(k=>k.startsWith('task:')).forEach(k=>{const f=followups.find(f=>f.id===k.slice(5));if(f){f.completedAt=completedAt;f.completedBy=user.id;}});
+      action.covered.filter(k=>k.startsWith('lead:')).forEach(k=>{const l=leads.find(l=>l.id===k.slice(5));if(l){l.followUpDate=action.date||'';l.events=[...(l.events||[]),{date:completedAt,label:'Follow-up conversation',text:action.reason||'Follow-up completed; no further date scheduled',by:user.name}];}});
+    }
+    if(action.date&&action.type!=='quote'&&!action.covered.some(k=>k.startsWith('lead:')))followups.push({...action,id:'F'+Date.now(),ownerId:action.ownerId||user.id,createdAt:completedAt,createdBy:user.id});
+    storage.set('bdm_followups',followups);storage.set('bdm_leads',leads);
+    // The existing save creates the call and quote, then advances the frozen queue.
+    const renderAfter=renderCustomer;renderCustomer=()=>{};
+    try{options.onSuccess(user);}finally{renderCustomer=renderAfter;}
+    const latest=activity[0];if(latest&&String(latest.customerId)===String(action.customerId)){latest.deal=action.deal;latest.follow=action.date;latest.covered=action.covered;latest.nextActionReason=action.reason;storage.set('bdm_activity',activity);}
+    if(action.type==='quote'&&leads[0]){leads[0].nextActionReason=action.reason;storage.set('bdm_leads',leads);}
+    if(action.type==='contact'){
+      const p=nurtureRecord(action.customerId);Object.assign(p,before);
+      if(action.covered.includes('newNurture'))p.newContacts=Math.min(4,n(before.newContacts)+1);
+      if(action.covered.includes('oldNurture')){p.oldContacts=n(before.oldContacts)+1;p.lastOldContact=isoToday();}
+      if(action.covered.includes('thanks'))p.thanksHandledThrough=recentTxFor(action.customerId)[0]?.date||before.thanksHandledThrough;
+      storage.set('bdm_nurture_progress',nurtureProgress);
+    }
+    renderCustomer('✓ Saved. Next actions updated.');
+  }});
+};
+const originalManager=renderManager;
+renderManager=function(){
+  originalManager();if(!activeUser()?.manager)return;
+  app.insertAdjacentHTML('afterbegin',`<section class="form-card"><h2>Individual daily targets and follow-ups</h2>${users.filter(u=>u.active!==false).map(u=>{const s=targetStatus(u.id),m=todaysUserMetrics(u.id),t=dailyTargetFor(u.id).targets,due=ownDue(u.id);return `<div class="history-card"><h2>${esc(u.name)}</h2><p>Calls ${m.calls}/${t.calls} · Conversations ${m.conversations}/${t.conversations} · Leads ${m.leads}/${t.leads} · Surveys ${m.surveys}/${t.surveys}</p><p>${due.filter(f=>f.date<isoToday()).length} overdue · ${due.filter(f=>f.date===isoToday()).length} due today</p><button class="wide-btn secondary" data-staff-follow="${esc(u.id)}">Review follow-ups</button></div>`;}).join('')}</section>`);
+  document.querySelectorAll('[data-staff-follow]').forEach(b=>b.onclick=()=>renderFollowups(b.dataset.staffFollow));
+};
+const originalImport=renderImport;
+renderImport=function(){
+  originalImport();title.textContent='Reports and backups';
+  app.insertAdjacentHTML('beforeend',`<section class="form-card"><h2>YTD sales report</h2><p class="muted">Top 20 customers use YTD sales. Include Customer / Account, Name and YTD Sales columns.</p><input id="centreYtd" type="file" accept=".xlsx,.xls,.xlsm,.csv"><h2>Transactions report</h2><p class="muted">Include Customer / Account, Date and Value / Sales / Amount columns. Reference, Description and Category are optional.</p><input id="centreTransactions" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="reportStatus"></div></section><section class="form-card"><h2>Report freshness</h2>${['customers','ytd','transactions'].map(k=>{const m=reportMetadata[k];return `<p><b>${esc(k)}</b> · ${m?esc(m.filename)+' · '+esc(m.uploadedAt.slice(0,10))+' · '+m.rows+' rows'+(m.warnings?.length?'<br>'+m.warnings.map(esc).join('<br>'):''):'No upload recorded'}</p>`;}).join('')}<p class="muted">Data and PIN access currently stay in this browser. Export backups before changing device or clearing browser storage.</p><button class="wide-btn" id="exportBackup">Download backup</button><label>Restore backup<input id="restoreBackup" type="file" accept=".json"></label><div id="backupStatus"></div></section>`);
+  document.getElementById('fileInput').onchange=ev=>requestPin({title:'Upload customer report',managerOnly:true,onSuccess:()=>validatedReport('customers',ev.target.files[0])});
+  document.getElementById('centreYtd').onchange=ev=>requestPin({title:'Upload YTD report',managerOnly:true,onSuccess:()=>validatedReport('ytd',ev.target.files[0])});
+  document.getElementById('centreTransactions').onchange=ev=>requestPin({title:'Upload transactions',managerOnly:true,onSuccess:()=>validatedReport('transactions',ev.target.files[0])});
+  document.getElementById('exportBackup').onclick=()=>requestPin({title:'Export backup',managerOnly:true,onSuccess:exportBackup});
+  document.getElementById('restoreBackup').onchange=ev=>{const file=ev.target.files[0];if(file)requestPin({title:'Restore backup',managerOnly:true,onSuccess:()=>restoreBackup(file)});};
+};
+function reportDate(value){
+  if(typeof value==='number'){const d=XLSX.SSF.parse_date_code(value);return d?`${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`:'';}
+  const str=String(value??'').trim();let match=str.match(/^(\d{4})-(\d{2})-(\d{2})/);if(!match){const uk=str.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(uk)match=[null,uk[3],uk[2].padStart(2,'0'),uk[1].padStart(2,'0')];}
+  if(!match)return '';const date=`${match[1]}-${match[2]}-${match[3]}`;const d=new Date(date+'T12:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===date?date:'';
+}
+function validatedCustomerRows(rows){
+  const customers=[],seen=new Set();
+  const ytd=rows.slice(0,4).map(row=>(row||[]).findIndex(v=>/ytd|year\s*to\s*date/i.test(String(v||''))&&/sales|spend/i.test(String(v||'')))).find(i=>i>=0);
+  rows.slice(4).forEach((row,i)=>{if(!(row||[]).some(v=>v!=null&&String(v).trim()))return;const id=String(row[0]??'').trim();if(/^(total|grand total)$/i.test(id))return;if(!id||!String(row[1]??'').trim())throw new Error('Missing account or name on row '+(i+5));if(seen.has(id))throw new Error('Duplicate customer account '+id);seen.add(id);const obj={};FIELD_NAMES.forEach((k,c)=>obj[k]=row[c]??null);obj.customer=id;if(ytd!=null)obj.salesYTD=reportNumber(row[ytd]);customers.push(obj);});
+  if(!customers.length)throw new Error('No customer rows found after the four report header rows.');return customers;
+}
+function transactionRows(rows){
+  const norm=v=>String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  let header=-1,cols;
+  for(let i=0;i<Math.min(30,rows.length);i++){const h=rows[i].map(norm);const find=aliases=>h.findIndex(v=>aliases.includes(v));const c={id:find(['customer','customerid','customernumber','account','accountnumber','accountno']),date:find(['date','transactiondate','invoicedate']),value:find(['value','amount','sales','netsales','transactionvalue']),reference:find(['reference','invoicenumber','invoiceno','transactionid']),detail:find(['description','details','detail']),category:find(['category','productcategory'])};if(c.id>=0&&c.date>=0&&c.value>=0){header=i;cols=c;break;}}
+  if(header<0)throw new Error('Could not find Account, Date and Value columns.');
+  const out=[];rows.slice(header+1).forEach((row,i)=>{if(!row.some(v=>v!=null&&String(v).trim()))return;const id=String(row[cols.id]??'').trim();if(/total/i.test(id))return;const date=reportDate(row[cols.date]);const numeric=String(row[cols.value]??'').replace(/[£$,\s()]/g,'');if(!id||!date||!numeric||!Number.isFinite(Number(numeric)))throw new Error('Invalid account, date or amount on row '+(header+i+2));if(date>isoToday())throw new Error('Future transaction date on row '+(header+i+2));out.push({customerId:id,date,value:reportNumber(row[cols.value]),reference:String(row[cols.reference]??'').trim(),detail:String(row[cols.detail]??''),category:String(row[cols.category]??'')});});if(!out.length)throw new Error('No transactions found.');return out;
+}
+function txKey(t){return t.reference?'ref:'+t.customerId+':'+t.reference:[t.customerId,t.date,t.value,t.detail||'',t.category||''].join('|');}
+async function validatedReport(kind,file){
+  if(!file)return;const status=document.getElementById('reportStatus')||document.getElementById('importStatus');
+  try{
+    if(typeof XLSX==='undefined')throw new Error('Spreadsheet reader unavailable. Check your connection.');
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});let parsed=null,sheet='';
+    for(const name of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true});if(kind==='customers'){parsed=validatedCustomerRows(rows);sheet=name;break;}if(kind==='ytd'){const columns=ytdColumns(rows);if(columns){parsed=parseYtdRows(rows,columns);sheet=name;break;}}else{try{parsed=transactionRows(rows);sheet=name;break;}catch(e){if(wb.SheetNames.length===1)throw e;}}}
+    if(!parsed?.length)throw new Error('No matching report columns found.');
+    const warnings=[],known=new Set((latestSnapshot()?.customers||[]).map(c=>String(c.customer).trim()));
+    if(kind==='customers'){const date=document.getElementById('snapshotDate').value;if(!date||!reportDate(date)||date>isoToday())throw new Error('Choose a valid snapshot date up to today.');snapshots.push({id:Date.now(),date,filename:file.name,sheet,customers:parsed});storage.set('bdm_snapshots',snapshots);}
+    if(kind==='ytd'){const missingNames=parsed.filter(c=>!c.name).length;if(missingNames)warnings.push(missingNames+' customers have no name in the YTD report.');const seen=new Set();parsed.forEach(c=>{if(seen.has(c.customer))throw new Error('Duplicate customer account '+c.customer);seen.add(c.customer);});ytdReport={customers:parsed,filename:file.name,sheet,uploadedAt:new Date().toISOString()};storage.set('bdm_ytd_report',ytdReport);}
+    if(kind==='transactions'){const existing=new Map(recentTransactions.map(t=>[txKey(t),t]));let duplicates=0;parsed.forEach(t=>{if(existing.has(txKey(t)))duplicates++;else existing.set(txKey(t),t);});recentTransactions=[...existing.values()];storage.set('bdm_recent_transactions',recentTransactions);if(duplicates)warnings.push(duplicates+' duplicate transactions ignored.');}
+    if(kind!=='customers'){const unmatched=parsed.filter(c=>!known.has(String(c.customerId??c.customer))).length;if(unmatched)warnings.push(unmatched+' rows have no matching customer snapshot.');}
+    reportMetadata[kind]={filename:file.name,uploadedAt:new Date().toISOString(),rows:parsed.length,warnings};storage.set('bdm_report_metadata',reportMetadata);renderImport();
+    document.getElementById('reportStatus').innerHTML=`<div class="success">Imported ${parsed.length} rows. ${warnings.map(esc).join(' ')}</div>`;
+  }catch(e){status.innerHTML=`<div class="import-status error">${esc(e.message)}</div>`;}
+}
+const BACKUP_TYPES={bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
+function makeBackup(){const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(k))data[k]=JSON.parse(localStorage.getItem(k));}return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data};}
+function validateBackup(b){
+  if(b?.app!=='HANDSOME BDM'||b.version!==1||!b.data||Array.isArray(b.data))throw new Error('This is not a supported BDM backup.');
+  if(!Array.isArray(b.data.bdm_users)||!b.data.bdm_users.some(u=>u.manager&&u.active!==false&&/^[a-f0-9]{64}$/i.test(u.pinHash||'')))throw new Error('Backup needs an active manager with a valid PIN.');
+  for(const [key,value] of Object.entries(b.data)){if(!Object.hasOwn(BACKUP_TYPES,key))throw new Error('Unexpected backup key.');const type=BACKUP_TYPES[key];if(type==='array'&&!Array.isArray(value)||type==='object'&&(!value||typeof value!=='object'||Array.isArray(value)))throw new Error('Invalid backup data: '+key);}
+  for(const k of ['bdm_snapshots','bdm_activity','bdm_leads','bdm_followups','bdm_recent_transactions'])if(b.data[k]?.some(v=>!v||typeof v!=='object'||Array.isArray(v)))throw new Error('Invalid record in '+k);
+  if(b.data.bdm_snapshots?.some(s=>!Array.isArray(s.customers)))throw new Error('Invalid customer snapshot.');
+  return b;
+}
+function downloadBackup(b,suffix=''){const url=URL.createObjectURL(new Blob([JSON.stringify(b,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='handsome-bdm-'+isoToday()+suffix+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function exportBackup(){downloadBackup(makeBackup());document.getElementById('backupStatus').textContent='Backup download started. Keep it private: it contains your customer data and PIN hashes.';}
+async function restoreBackup(file){
+  const status=document.getElementById('backupStatus');
+  try{const b=validateBackup(JSON.parse(await file.text()));if(!confirm('Replace this browser’s BDM data with the backup from '+b.exportedAt+'? A copy of your current data will download first.'))return;const previous=makeBackup();downloadBackup(previous,'-before-restore');
+    try{Object.keys(previous.data).forEach(k=>localStorage.removeItem(k));Object.entries(b.data).forEach(([k,v])=>storage.set(k,v));localStorage.removeItem('bdm_active_user');}catch(e){Object.keys(b.data).forEach(k=>localStorage.removeItem(k));Object.entries(previous.data).forEach(([k,v])=>storage.set(k,v));throw e;}
+    location.reload();
+  }catch(e){status.textContent='Restore failed: '+e.message;}
 }
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
