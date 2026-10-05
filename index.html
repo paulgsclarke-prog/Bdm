@@ -937,6 +937,20 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .lead-search-empty{background:#fff;border:1px solid #d7d4cc;border-radius:5px;padding:16px;color:#646363}
 @media(max-width:430px){.lead-search-panel{grid-template-columns:1fr}.lead-search-panel select{width:100%}}
 
+
+/* V22 unified customer record */
+.customer-record-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.customer-record-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.customer-record-actions button,.customer-record-actions a{min-height:46px;border:1px solid #d7d4cc;border-radius:5px;background:#fff;color:#20201e;padding:11px;text-align:center;text-decoration:none;font-weight:850}
+.customer-record-actions .primary{background:#0f4a43;color:#fff;border-color:#0f4a43}
+.customer-record-section{margin-top:14px}
+.customer-record-list{display:grid;gap:8px;margin-top:8px}
+.customer-record-item{border:1px solid #e0ddd6;border-radius:5px;background:#fff;padding:11px}
+.customer-record-item b{display:block}.customer-record-item small{display:block;color:#646363;margin-top:4px;line-height:1.35}
+.customer-record-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.customer-record-summary .fact{min-width:0}
+@media(max-width:360px){.customer-record-actions{grid-template-columns:1fr}.customer-record-summary{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -3947,6 +3961,88 @@ renderLeads=function(mode='all'){
   if(manager)document.getElementById('leadOwnerFilter').onchange=applyLeadListFilters;
   document.querySelectorAll('[data-lead-focus]').forEach(b=>b.addEventListener('click',()=>setTimeout(applyLeadListFilters,0)));
   applyLeadListFilters();
+};
+
+
+/* V22: one customer record for sales, calls, leads and next actions. */
+function customerRecordData(customerId){
+  const id=String(customerId),dir=customerDirectory().find(c=>String(c.id)===id);
+  const raw=dir?.raw||[...snapshots].reverse().flatMap(s=>s.customers||[]).find(c=>String(c.customer)===id)||null;
+  const customer={id,name:dir?.name||raw?.name||id,phone:dir?.phone||String(raw?.phone||raw?.telephone||''),raw};
+  const custLeads=leads.filter(l=>String(l.customerId)===id).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  const custFollowups=followups.filter(f=>String(f.customerId)===id&&!f.completedAt).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+  const custActivity=activity.filter(a=>String(a.customerId)===id).sort((a,b)=>String(b.iso||'').localeCompare(String(a.iso||'')));
+  const transactions=recentTransactions.filter(t=>String(t.customerId)===id).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const openLeads=custLeads.filter(l=>!leadIsClosed(l));
+  const nextActions=[
+    ...openLeads.filter(l=>l.followUpDate).map(l=>({date:l.followUpDate,label:l.nextActionReason||l.details||'Lead follow-up',kind:'Lead',leadId:l.id,owner:l.ownerName||''})),
+    ...custFollowups.filter(f=>f.date).map(f=>({date:f.date,label:f.reason||'Follow-up',kind:'Callback',owner:users.find(u=>u.id===f.ownerId)?.name||''}))
+  ].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  return {customer,raw,custLeads,custFollowups,custActivity,transactions,openLeads,nextActions};
+}
+function renderCustomerRecord(customerId,back=()=>renderCustomerSearch(lastCustomerQuery)){
+  const d=customerRecordData(customerId),c=d.customer,r=d.raw;
+  currentView='customers';title.textContent='Customer';setNav('');
+  const stats=accountLeadStats(c.id),lastAct=d.custActivity[0],next=d.nextActions[0];
+  app.innerHTML=`
+  <section class="form-card">
+    <div class="customer-record-head"><div><h2>${esc(c.name)}</h2><div class="sub">Account ${esc(c.id)}</div></div><span class="badge">${r?'Current customer':'Historic / not in latest report'}</span></div>
+    <div class="customer-record-actions">
+      ${c.phone?`<a class="primary" href="tel:${esc(String(c.phone).replace(/[^+\d*#]/g,''))}">Call ${esc(c.phone)}</a>`:'<button disabled>No phone number</button>'}
+      <button id="recordStartCall" class="primary">Record call</button>
+      <button id="recordAddLead">Add sales lead</button>
+      <button id="recordBack">Back</button>
+    </div>
+    <div class="customer-record-summary">
+      <div class="fact"><small>MAT sales</small><b>${money(r?.salesMAT||0)}</b></div>
+      <div class="fact"><small>Transactions</small><b>${n(r?.transactionsMAT)}</b></div>
+      <div class="fact"><small>Recency</small><b>${r?inactivityBand(r.recency):'—'}</b></div>
+      <div class="fact"><small>Lead success</small><b>${stats.successRate.toFixed(1)}%</b></div>
+      <div class="fact"><small>Open leads</small><b>${d.openLeads.length}</b></div>
+      <div class="fact"><small>Recent spend 30d</small><b>${money(recentSpend30(c.id))}</b></div>
+    </div>
+  </section>
+
+  <section class="form-card customer-record-section">
+    <div class="row"><h2>Next action</h2>${next?`<span class="badge ${next.date<isoToday()?'overdue':next.date===isoToday()?'today':''}">${esc(next.date)}</span>`:''}</div>
+    ${next?`<div class="customer-record-item"><b>${esc(next.label)}</b><small>${esc(next.kind)}${next.owner?' · '+esc(next.owner):''}</small>${next.leadId?`<button class="wide-btn secondary" data-record-lead="${esc(next.leadId)}">Open lead</button>`:''}</div>`:'<p class="muted">No next action scheduled.</p>'}
+  </section>
+
+  <section class="form-card customer-record-section">
+    <div class="row"><h2>Open leads</h2><span class="badge">${d.openLeads.length}</span></div>
+    <div class="customer-record-list">${d.openLeads.slice(0,6).map(l=>`<div class="customer-record-item"><b>${esc(l.details||l.category||'Sales opportunity')}</b><small>${money(l.value)} · ${esc(normalizeStage(l))} · ${esc(l.followUpDate||'No follow-up date')}</small><button class="wide-btn secondary" data-record-lead="${esc(l.id)}">Open lead</button></div>`).join('')||'<p class="muted">No open leads.</p>'}</div>
+  </section>
+
+  <section class="form-card customer-record-section">
+    <div class="row"><h2>Recent activity</h2><span class="badge">${d.custActivity.length}</span></div>
+    <div class="customer-record-list">${d.custActivity.slice(0,8).map(a=>`<div class="customer-record-item"><b>${esc(a.type||'Activity')}</b><small>${esc(a.time||a.iso||'')} · ${esc(a.detail||'')}</small></div>`).join('')||'<p class="muted">No activity recorded.</p>'}</div>
+    <button class="wide-btn secondary" id="recordFullHistory">Full customer history</button>
+  </section>
+
+  <section class="form-card customer-record-section">
+    <div class="row"><h2>Recent transactions</h2><span class="badge">${d.transactions.length}</span></div>
+    <div class="customer-record-list">${d.transactions.slice(0,8).map(t=>`<div class="customer-record-item"><b>${money(t.value)} · ${esc(t.category||'Transaction')}</b><small>${esc(t.date||'')}${t.detail?' · '+esc(t.detail):''}</small></div>`).join('')||'<p class="muted">No transaction detail loaded.</p>'}</div>
+  </section>`;
+  document.getElementById('recordBack').onclick=back;
+  document.getElementById('recordAddLead').onclick=()=>renderSalesLeadForm(null,{id:c.id,name:c.name},()=>renderCustomerRecord(c.id,back));
+  document.getElementById('recordStartCall').onclick=()=>{queueOwnerId=activeUserId;queueSnapshot=[customerForFollowup({customerId:c.id,customer:c.name,reason:next?.label||'Check current work and upcoming jobs'})];queueSnapshot[0].phone=c.phone;queueKey='record';queueIndex=0;renderCustomer();};
+  document.getElementById('recordFullHistory').onclick=()=>renderCustomerHistory(c.id,c.name,()=>renderCustomerRecord(c.id,back));
+  document.querySelectorAll('[data-record-lead]').forEach(b=>b.onclick=()=>renderSalesLeadForm(leads.find(l=>String(l.id)===String(b.dataset.recordLead)),null,()=>renderCustomerRecord(c.id,back)));
+}
+const recordSearchRenderer=renderCustomerSearch;
+renderCustomerSearch=function(query=''){
+  recordSearchRenderer(query);
+  document.querySelectorAll('[data-customer-open]').forEach(button=>button.onclick=()=>renderCustomerRecord(button.dataset.customerOpen,()=>renderCustomerSearch(lastCustomerQuery)));
+};
+const recordCustomerRenderer=renderCustomer;
+renderCustomer=function(msg=''){
+  recordCustomerRenderer(msg);
+  const c=queueSnapshot?.[queueIndex],card=app.querySelector('.customer-card');if(!c||!card)return;
+  if(!document.getElementById('openCustomerRecord')){
+    const btn=document.createElement('button');btn.className='wide-btn secondary';btn.id='openCustomerRecord';btn.textContent='Open customer record';
+    const skip=document.getElementById('skipBtn');if(skip)skip.insertAdjacentElement('beforebegin',btn);else card.append(btn);
+    btn.onclick=()=>renderCustomerRecord(c.id,()=>renderCustomer(msg));
+  }
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
