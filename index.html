@@ -992,6 +992,16 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .survey-list-item{border:1px solid #d7d4cc;border-radius:5px;background:#fff;padding:12px;margin-top:8px}
 .eod-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #e4e2dc}
 .eod-row:last-child{border-bottom:0}.eod-row b{display:block}.eod-row small{display:block;color:#646363;margin-top:3px}
+/* V28 conversion reporting + leaderboard */
+.leaderboard{display:grid;gap:8px}
+.leader-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #ddd9d1;border-radius:6px;background:#fff;padding:11px}
+.leader-rank{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#edf2f0;font-weight:900}
+.leader-row b{display:block}.leader-row small{display:block;color:#646363;margin-top:3px}
+.conversion-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.conversion-strip>div{border:1px solid #ddd9d1;border-radius:5px;background:#fff;padding:10px;text-align:center}
+.conversion-strip b{display:block;font-size:22px}.conversion-strip small{display:block;color:#646363;margin-top:4px}
+.campaign-metric-row{display:grid;grid-template-columns:minmax(0,1fr) repeat(4,auto);gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #e4e2dc;font-size:12px}
+.campaign-metric-row:last-child{border-bottom:0}.campaign-metric-row b{font-size:12px}
 </style>
 </head>
 <body>
@@ -4380,6 +4390,69 @@ function renderEndOfDay(){
 const eodManager=renderManager;
 renderManager=function(){
   eodManager();if(!activeUser()?.manager)return;const first=app.querySelector('.form-card');if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='End-of-day review';btn.onclick=renderEndOfDay;first.append(btn);}
+};
+
+
+/* V28: survey conversion, campaign attribution and manager leaderboard. */
+function surveyConversionMetrics(){
+  const valid=surveys.filter(s=>s.status!=='cancelled');
+  const completed=valid.filter(s=>s.status==='completed');
+  const linked=completed.map(s=>({survey:s,lead:leads.find(l=>l.id===s.leadId)})).filter(x=>x.lead);
+  const won=linked.filter(x=>normalizeStage(x.lead)==='Won');
+  return {
+    booked:valid.length,
+    completed:completed.length,
+    linked:linked.length,
+    won:won.length,
+    completionRate:valid.length?completed.length/valid.length*100:0,
+    winRate:linked.length?won.length/linked.length*100:0,
+    wonValue:won.reduce((sum,x)=>sum+n(x.lead.value),0)
+  };
+}
+function campaignPerformance(){
+  return campaigns.map(c=>{
+    const workflow='campaign:'+c.id;
+    const acts=activity.filter(a=>a.workflow===workflow);
+    const conversations=acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type));
+    const customerIds=new Set(conversations.map(a=>String(a.customerId||'')));
+    const attributedLeads=leads.filter(l=>customerIds.has(String(l.customerId))&&acts.some(a=>String(a.customerId)===String(l.customerId)&&a.iso&&l.createdAt&&Math.abs(new Date(l.createdAt)-new Date(a.iso))<86400000));
+    const won=attributedLeads.filter(l=>normalizeStage(l)==='Won');
+    return {...c,calls:acts.length,conversations:conversations.length,leads:attributedLeads.length,won:won.length,wonValue:won.reduce((s,l)=>s+n(l.value),0)};
+  }).sort((a,b)=>b.wonValue-a.wonValue||b.leads-a.leads||b.conversations-a.conversations);
+}
+function staffLeaderboard(){
+  const p=currentSalesPeriodNumber();
+  return users.filter(u=>u.active!==false).map(user=>{
+    const acts=activity.filter(a=>a.audit?.userId===user.id&&a.iso&&periodInfo(a.iso).period===p);
+    const calls=acts.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).length;
+    const conversations=acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type)).length;
+    const owned=leads.filter(l=>l.ownerId===user.id&&l.createdAt&&periodInfo(l.createdAt).period===p);
+    const won=owned.filter(l=>normalizeStage(l)==='Won');
+    const surveysDone=surveys.filter(s=>s.ownerId===user.id&&s.status==='completed'&&s.completedAt&&periodInfo(s.completedAt).period===p).length;
+    const value=won.reduce((s,l)=>s+n(l.value),0),margin=won.reduce((s,l)=>s+n(l.margin),0);
+    const score=calls+conversations*2+owned.length*4+won.length*8+surveysDone*3;
+    return {user,calls,conversations,leads:owned.length,won:won.length,surveysDone,value,margin,score};
+  }).sort((a,b)=>b.score-a.score||b.value-a.value||b.conversations-a.conversations);
+}
+const conversionStatsRenderer=renderStats;
+renderStats=function(){
+  conversionStatsRenderer();
+  const survey=surveyConversionMetrics();
+  const s=document.createElement('section');s.className='stat-section';
+  s.innerHTML='<div class="stat-section-title">Survey conversion</div><div class="settings-card"><div class="conversion-strip"><div><b>'+survey.booked+'</b><small>Booked</small></div><div><b>'+survey.completed+'</b><small>Completed</small></div><div><b>'+survey.won+'</b><small>Won</small></div></div><p class="sub">'+survey.completionRate.toFixed(1)+'% completion · '+survey.winRate.toFixed(1)+'% completed-survey win rate · '+money(survey.wonValue)+' won value</p></div>';
+  app.append(s);
+  const cp=campaignPerformance();
+  const c=document.createElement('section');c.className='stat-section';
+  c.innerHTML='<div class="stat-section-title">Campaign results</div><div class="settings-card">'+(cp.map(x=>'<div class="campaign-metric-row"><b>'+esc(x.name)+'</b><span>'+x.calls+' calls</span><span>'+x.conversations+' spoke</span><span>'+x.leads+' leads</span><span>'+x.won+' won · '+money(x.wonValue)+'</span></div>').join('')||'<span class="muted">No campaigns recorded yet.</span>')+'</div>';
+  app.append(c);
+};
+const leaderboardManagerRenderer=renderManager;
+renderManager=function(){
+  leaderboardManagerRenderer();if(!activeUser()?.manager)return;
+  const board=staffLeaderboard(),section=document.createElement('section');section.className='form-card';
+  section.innerHTML='<h2>Team leaderboard</h2><p class="sub">Current-period activity and converted business.</p><div class="leaderboard">'+board.map((r,i)=>'<button class="leader-row" data-board-user="'+esc(r.user.id)+'"><span class="leader-rank">'+(i+1)+'</span><div><b>'+esc(r.user.name)+'</b><small>'+r.calls+' calls · '+r.conversations+' conversations · '+r.leads+' leads · '+r.surveysDone+' surveys</small></div><div><b>'+r.won+' won</b><small>'+money(r.value)+'</small></div></button>').join('')+'</div>';
+  const banner=app.querySelector('.period-banner');if(banner)banner.insertAdjacentElement('afterend',section);else app.prepend(section);
+  document.querySelectorAll('[data-board-user]').forEach(b=>b.onclick=()=>renderManagerStaff(b.dataset.boardUser));
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
