@@ -1098,7 +1098,7 @@ function dashboardMetrics(){
 let periodSettings = storage.get('bdm_period_settings', {});
 
 
-const LEAD_STAGES = ['Open','Contacted','Quoted','Awaiting decision','Won','Lost','On hold'];
+const LEAD_STAGES = ['Opportunity','Contacted','Appointment booked','Design in progress','Quoted','Awaiting decision','Won','Lost','On hold'];
 const LOSS_REASONS = ['No answer','No work currently','Competitor','Price','Service','Credit','Moved area','Business closed','Not interested','Other'];
 let userTargets = storage.get('bdm_user_targets', {});
 let periodTargets = storage.get('bdm_period_targets', {});
@@ -1349,10 +1349,10 @@ function leadAgeBucket(l){
   return '29+ days';
 }
 function normalizeStage(l){
-  if(l.stage) return l.stage;
+  if(l.stage) return l.stage==='Open'?'Opportunity':l.stage;
   if(l.status==='won') return 'Won';
   if(l.status==='lost') return 'Lost';
-  return 'Open';
+  return 'Opportunity';
 }
 function leadIsClosed(l){ const s=normalizeStage(l); return s==='Won'||s==='Lost'; }
 function leadOpportunityScore(l){
@@ -1801,9 +1801,9 @@ async function handleImport(ev){
 
 function renderLeads(mode='all'){
   currentView='leads'; title.textContent='Leads'; setNav('leads');
-  const open=leads.filter(l=>l.status!=='lost');
-  const totalValue=open.reduce((s,l)=>s+n(l.value),0);
-  const totalMargin=open.reduce((s,l)=>s+n(l.margin),0);
+  const open=leads;
+  const totalValue=open.filter(l=>!leadIsClosed(l)).reduce((s,l)=>s+n(l.value),0);
+  const totalMargin=open.filter(l=>!leadIsClosed(l)).reduce((s,l)=>s+n(l.margin),0);
   const totalPct=totalValue ? totalMargin/totalValue*100 : 0;
 
   let body='';
@@ -1844,7 +1844,7 @@ function renderLeads(mode='all'){
     body=`<section class="list">${sorted.map(l=>{
       const bucket=leadStatusBucket(l);
       const badge=bucket==='overdue'?'overdue':bucket==='today'?'today':bucket==='won'?'green':'open';
-      const label=bucket==='overdue'?'Overdue':bucket==='today'?'Today':bucket==='won'?'Won':'Open';
+      const label=bucket==='overdue'?'Overdue':bucket==='today'?'Today':bucket==='won'?'Won':bucket==='lost'?'Lost':'Open';
       const p=l.requiredByDate?periodInfo(l.requiredByDate):null;
       return `<div class="history-card">
         <div class="row"><div><h2>${l.customer}</h2><div class="lead-period">${p&&p.period?`P${p.period} · W${p.week} · D${p.day}`:'No required date'}</div><div class="sub">Owner: ${l.ownerName||'Unassigned'}</div></div><span class="badge ${badge}">${label}</span></div>
@@ -1860,10 +1860,14 @@ function renderLeads(mode='all'){
           <span class="score-pill">${leadOpportunityScore(l)}</span>
         </div>
         <p class="sub"><b>Follow-up:</b> ${l.followUpDate||'Not set'} · <b>Quote:</b> ${l.quoteNo||'—'}</p>
+        <p class="sub"><b>Next action:</b> ${esc(l.nextActionReason||'Not recorded')}</p>
+        <p>${esc(l.details||'')}</p>
+        ${l.category==='Kitchen'?`<p class="sub"><b>Designer:</b> ${esc(l.designerName||'Not assigned')} · ${esc(l.handoverStatus||'Not needed')}</p>`:''}
         ${bestTimeForCustomer(l.customerId)?`<div class="best-time">Best time to call: ${bestTimeForCustomer(l.customerId)}</div>`:''}
         <div class="toolbar" style="margin-top:10px">
           <button class="filter-btn" data-edit-lead="${l.id}">Update lead</button>
-          <button class="filter-btn" data-snooze-lead="${l.id}">Snooze 2 days</button>
+          ${!leadIsClosed(l)?`<button class="filter-btn" data-snooze-lead="${l.id}">Snooze 2 days</button>`:''}
+          <button class="filter-btn" data-lead-history="${esc(l.id)}">Customer history</button>
         </div>
         ${l.audit?`<div class="audit-line"><b>${l.audit.userName}</b> · ${l.audit.display}</div>`:''}
       </div>`;
@@ -1872,15 +1876,19 @@ function renderLeads(mode='all'){
 
   app.innerHTML=`
     <section class="kpi-grid" style="margin-bottom:14px">
-      <div class="kpi-card good"><span class="kpi-value">${money(totalValue)}</span><span class="kpi-label">Total lead value</span></div>
-      <div class="kpi-card good"><span class="kpi-value">${money(totalMargin)}</span><span class="kpi-label">Total margin</span><span class="kpi-sub">${totalPct.toFixed(1)}%</span></div>
+      <div class="kpi-card good"><span class="kpi-value">${money(totalValue)}</span><span class="kpi-label">Active pipeline value</span></div>
+      <div class="kpi-card good"><span class="kpi-value">${money(totalMargin)}</span><span class="kpi-label">Active pipeline margin</span><span class="kpi-sub">${totalPct.toFixed(1)}%</span></div>
     </section>
     <div class="toolbar">
+      <button class="filter-btn" id="addSalesLead">Add lead</button>
       <button class="filter-btn ${mode==='all'?'active':''}" data-lead-mode="all">All leads</button>
       <button class="filter-btn ${mode==='category'?'active':''}" data-lead-mode="category">By category</button>
       <button class="filter-btn ${mode==='period'?'active':''}" data-lead-mode="period">By required period</button>
     </div>
     ${body}`;
+  document.getElementById('addSalesLead').onclick=()=>renderSalesLeadForm();
+  document.querySelectorAll('[data-lead-mode]').forEach(b=>b.onclick=()=>renderLeads(b.dataset.leadMode));
+  document.querySelectorAll('[data-lead-history]').forEach(b=>b.onclick=()=>{const l=leads.find(l=>l.id===b.dataset.leadHistory);renderCustomerHistory(l.customerId,l.customer,()=>renderLeads());});
   document.querySelectorAll('[data-edit-lead]').forEach(btn=>{
     btn.onclick=()=>renderLeadEditor(btn.dataset.editLead);
   });
@@ -1891,10 +1899,11 @@ function renderLeads(mode='all'){
         title:'Snooze lead',
         subtitle:'Move follow-up forward by 2 days',
         onSuccess:(user)=>{
-          const d=lead.followUpDate?localDateOnly(lead.followUpDate):new Date();
+          const d=lead.followUpDate&&lead.followUpDate>isoToday()?localDateOnly(lead.followUpDate):localDateOnly(new Date());
           d.setDate(d.getDate()+2);
           lead.followUpDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          lead.audit=auditStamp(user,'Lead snoozed');
+          lead.updatedAudit=auditStamp(user,'Lead snoozed');
+          lead.events=[...(lead.events||[]),{date:new Date().toISOString(),label:'Follow-up moved',text:lead.followUpDate+' · '+(lead.nextActionReason||''),by:user.name}];
           storage.set('bdm_leads',leads);
           renderLeads('all');
         }
@@ -2252,6 +2261,7 @@ function renderOutcome(type,c){
       payload.category=document.getElementById('leadCategory').value||'Kitchen';
       payload.ownerId=document.getElementById('leadOwner').value||activeUserId||'';
       payload.requiredBy=document.getElementById('requiredBy').value||'';
+      payload.salesExtras={...readKitchenHandover('quote',payload.category),lossReason:payload.stage==='Lost'?(document.getElementById('quoteLoss')?.value||''):''};
     }
 
     requestPin({
@@ -2297,10 +2307,11 @@ function renderOutcome(type,c){
             value:payload.value,
             margin:payload.margin,
             requiredByDate:payload.requiredBy,
-            followUpDate:payload.follow,
+            followUpDate:['Won','Lost'].includes(payload.stage)?'':payload.follow,
             stage:payload.stage,
             status:payload.stage==='Won'?'won':payload.stage==='Lost'?'lost':'open',
             notes:payload.notes,
+            ...payload.salesExtras,
             audit
           });
           storage.set('bdm_leads', leads);
@@ -2882,7 +2893,7 @@ renderCustomer=function(msg=''){
 };
 function renderCustomerHistory(id,name,back=renderHistory){
   title.textContent='Customer history';setNav('');
-  const events=[...activity.filter(a=>String(a.customerId)===String(id)).map(a=>({date:a.iso,label:a.type,text:[a.detail,a.deal&&'Offer: '+a.deal,a.follow&&'Next action: '+a.follow].filter(Boolean).join(' · '),by:a.audit?.userName})),...recentTransactions.filter(t=>String(t.customerId)===String(id)).map(t=>({date:t.date,label:'Purchase · '+money(t.value),text:t.detail||t.category||''})),...leads.filter(l=>String(l.customerId)===String(id)).flatMap(l=>[{date:l.createdAt,label:'Quote '+(l.quoteNo||'')+' · '+l.stage,text:(l.details||'')+' · '+money(l.value),by:l.ownerName},...(l.events||[])]),...followups.filter(f=>String(f.customerId)===String(id)).map(f=>({date:f.createdAt,label:f.completedAt?'Follow-up completed':'Follow-up scheduled for '+f.date,text:f.reason,by:users.find(u=>u.id===f.ownerId)?.name}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const events=[...activity.filter(a=>String(a.customerId)===String(id)).map(a=>({date:a.iso,label:a.type,text:[a.detail,a.deal&&'Offer: '+a.deal,a.follow&&'Next action: '+a.follow].filter(Boolean).join(' · '),by:a.audit?.userName})),...recentTransactions.filter(t=>String(t.customerId)===String(id)).map(t=>({date:t.date,label:'Purchase · '+money(t.value),text:t.detail||t.category||''})),...leads.filter(l=>String(l.customerId)===String(id)).flatMap(l=>[{date:l.createdAt,label:(l.quoteNo?'Quote '+l.quoteNo:'Sales opportunity')+' · '+normalizeStage(l),text:(l.details||'')+' · '+money(l.value),by:l.ownerName},...(l.events||[])]),...followups.filter(f=>String(f.customerId)===String(id)).map(f=>({date:f.createdAt,label:f.completedAt?'Follow-up completed':'Follow-up scheduled for '+f.date,text:f.reason,by:users.find(u=>u.id===f.ownerId)?.name}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   app.innerHTML=`<section class="form-card"><h2>${esc(name)}</h2><div class="sub">Account ${esc(id)}</div><button class="wide-btn secondary" id="timelineBack">Back</button></section><section class="list">${events.map(e=>`<div class="history-card"><div class="sub">${esc(e.date)}${e.by?' · '+esc(e.by):''}</div><h2>${esc(e.label)}</h2><p>${esc(e.text)}</p></div>`).join('')||'<p>No history recorded yet.</p>'}</section>`;
   document.getElementById('timelineBack').onclick=back;
 }
@@ -2949,6 +2960,96 @@ renderManager=function(){
   originalManager();if(!activeUser()?.manager)return;
   app.insertAdjacentHTML('afterbegin',`<section class="form-card"><h2>Individual daily targets and follow-ups</h2>${users.filter(u=>u.active!==false).map(u=>{const s=targetStatus(u.id),m=todaysUserMetrics(u.id),t=dailyTargetFor(u.id).targets,due=ownDue(u.id);return `<div class="history-card"><h2>${esc(u.name)}</h2><p>Calls ${m.calls}/${t.calls} · Conversations ${m.conversations}/${t.conversations} · Leads ${m.leads}/${t.leads} · Surveys ${m.surveys}/${t.surveys}</p><p>${due.filter(f=>f.date<isoToday()).length} overdue · ${due.filter(f=>f.date===isoToday()).length} due today</p><button class="wide-btn secondary" data-staff-follow="${esc(u.id)}">Review follow-ups</button></div>`;}).join('')}</section>`);
   document.querySelectorAll('[data-staff-follow]').forEach(b=>b.onclick=()=>renderFollowups(b.dataset.staffFollow));
+};
+const HANDOVER_STATES=['Not needed','Awaiting designer','Ready to hand over','Passed to designer','Accepted by designer'];
+function staffOptions(selected,emptyLabel){
+  const options=users.filter(u=>u.active!==false||u.id===selected);
+  return `<option value="">${esc(emptyLabel)}</option>`+options.map(u=>`<option value="${esc(u.id)}" ${u.id===selected?'selected':''}>${esc(u.name)}${u.active===false?' (inactive)':''}</option>`).join('');
+}
+function kitchenHandoverFields(prefix,l={}){
+  return `<section class="form-card" id="${prefix}Kitchen"><h2>Kitchen designer handover</h2><p class="muted">Optional for this lead. Customer accounts remain shared.</p><div class="field"><label for="${prefix}Designer">Kitchen designer</label><select id="${prefix}Designer">${staffOptions(l.designerId,'No designer assigned')}</select></div><div class="field"><label for="${prefix}HandoverStatus">Handover status</label><select id="${prefix}HandoverStatus">${HANDOVER_STATES.map(s=>`<option ${s===(l.handoverStatus||'Not needed')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="${prefix}HandoverNotes">Project and handover notes</label><textarea id="${prefix}HandoverNotes" placeholder="Project scope, customer requirements and what the designer needs to do">${esc(l.handoverNotes||'')}</textarea></div><div class="field"><label for="${prefix}AppointmentDate">Appointment date</label><input type="date" id="${prefix}AppointmentDate" value="${esc(l.appointmentDate||'')}"></div></section>`;
+}
+function readKitchenHandover(prefix,category){
+  if(category!=='Kitchen')return {designerId:'',designerName:'',handoverStatus:'Not needed',handoverNotes:'',appointmentDate:''};
+  const designerId=document.getElementById(prefix+'Designer')?.value||'';
+  return {designerId,designerName:users.find(u=>u.id===designerId)?.name||'',handoverStatus:document.getElementById(prefix+'HandoverStatus')?.value||'Not needed',handoverNotes:document.getElementById(prefix+'HandoverNotes')?.value.trim()||'',appointmentDate:document.getElementById(prefix+'AppointmentDate')?.value||''};
+}
+function validateHandover(data){
+  if(['Ready to hand over','Passed to designer','Accepted by designer'].includes(data.handoverStatus)){
+    if(!data.designerId)return 'Select a kitchen designer before handing over this lead.';
+    if(!data.handoverNotes)return 'Add project notes so the designer has the handover details.';
+  }
+  return '';
+}
+function leadFormCustomers(){
+  const found=new Map();
+  (latestSnapshot()?.customers||[]).forEach(c=>found.set(String(c.customer).trim(),{id:String(c.customer).trim(),name:c.name||String(c.customer)}));
+  if(!found.size)Object.values(demoCustomers).flat().forEach(c=>found.set(String(c.id),{id:String(c.id),name:c.name}));
+  (ytdReport?.customers||[]).forEach(c=>{if(!found.has(String(c.customer)))found.set(String(c.customer),{id:String(c.customer),name:c.name||String(c.customer)});});
+  leads.forEach(l=>{if(!found.has(String(l.customerId)))found.set(String(l.customerId),{id:String(l.customerId),name:l.customer});});
+  return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name));
+}
+function renderSalesLeadForm(existing=null,customer=null){
+  const editing=!!existing,l=existing||{},customers=leadFormCustomers();
+  if(customer&&!customers.some(c=>c.id===String(customer.id)))customers.unshift(customer);
+  title.textContent=editing?'Update lead':'Add lead';setNav('leads');currentView='leads';
+  const customerId=String(l.customerId||customer?.id||'');
+  app.innerHTML=`<section class="form-card"><h2>${editing?esc(l.customer):'New sales opportunity'}</h2><p class="muted">Responsibility belongs to this lead. The customer account is shared.</p><div class="field"><label for="salesCustomer">Customer</label><select id="salesCustomer" ${editing?'disabled':''}><option value="">Choose customer</option>${customers.map(c=>`<option value="${esc(c.id)}" ${c.id===customerId?'selected':''}>${esc(c.name)} · ${esc(c.id)}</option>`).join('')}</select></div><div class="field"><label for="salesCategory">Lead type</label><select id="salesCategory"><option ${l.category==='Kitchen'||!l.category?'selected':''}>Kitchen</option><option ${l.category==='Joinery'?'selected':''}>Joinery</option></select></div><div class="field"><label for="salesDetails">Opportunity details</label><input id="salesDetails" value="${esc(l.details||'')}" placeholder="What is the customer planning to buy?"></div><div class="field"><label for="salesStage">Stage</label><select id="salesStage">${LEAD_STAGES.map(s=>`<option ${s===(editing?normalizeStage(l):'Opportunity')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="salesOwner">Lead responsibility / next action owner</label><select id="salesOwner">${staffOptions(l.ownerId||activeUserId,'Choose staff member')}</select></div><div class="field"><label for="salesQuote">Quotation number</label><input id="salesQuote" inputmode="numeric" maxlength="6" value="${esc(l.quoteNo||'')}" placeholder="6 digits once quoted"></div><div class="lead-form-grid"><div class="field"><label for="salesValue">Estimated value £</label><input id="salesValue" type="number" min="0" step="0.01" value="${n(l.value)}"></div><div class="field"><label for="salesMargin">Estimated margin £</label><input id="salesMargin" type="number" step="0.01" value="${n(l.margin)}"></div></div><div class="field"><label for="salesRequired">Estimated date required</label><input id="salesRequired" type="date" value="${esc(l.requiredByDate||'')}"></div><div class="field"><label for="salesFollow">Next action date</label><input id="salesFollow" type="date" value="${esc(l.followUpDate||'')}"></div><div class="pill-row"><button class="pill" data-sales-days="1">Tomorrow</button><button class="pill" data-sales-days="7">Next week</button></div><div class="field"><label for="salesAction">Next action</label><input id="salesAction" value="${esc(l.nextActionReason||'')}" placeholder="Call about quote, book design appointment…"></div><div class="field" id="salesLossWrap"><label for="salesLoss">Lost reason</label><select id="salesLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div><div class="field"><label for="salesNotes">Sales notes</label><textarea id="salesNotes">${esc(l.notes||'')}</textarea></div></section>${kitchenHandoverFields('sales',l)}<div id="salesError" role="alert"></div><button class="wide-btn" id="saveSalesLead">${editing?'Save changes':'Save lead'}</button><button class="wide-btn secondary" id="cancelSalesLead">Cancel</button>`;
+  const refresh=()=>{document.getElementById('salesKitchen').hidden=document.getElementById('salesCategory').value!=='Kitchen';document.getElementById('salesLossWrap').hidden=document.getElementById('salesStage').value!=='Lost';};
+  document.getElementById('salesCategory').onchange=refresh;document.getElementById('salesStage').onchange=refresh;refresh();
+  document.querySelectorAll('[data-sales-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.salesDays));document.getElementById('salesFollow').value=workingDayKey(d);});
+  document.getElementById('cancelSalesLead').onclick=()=>renderLeads();
+  document.getElementById('saveSalesLead').onclick=()=>{
+    const value=id=>document.getElementById(id).value.trim();
+    const data={customerId:value('salesCustomer'),category:value('salesCategory'),details:value('salesDetails'),stage:value('salesStage'),ownerId:value('salesOwner'),quoteNo:value('salesQuote'),value:Number(value('salesValue')),margin:Number(value('salesMargin')),requiredByDate:value('salesRequired'),followUpDate:value('salesFollow'),nextActionReason:value('salesAction'),lossReason:value('salesLoss'),notes:value('salesNotes'),...readKitchenHandover('sales',value('salesCategory'))};
+    const error=validateSalesLead(data,existing);
+    if(error){document.getElementById('salesError').textContent=error;return;}
+    const selected=customers.find(c=>c.id===data.customerId);data.customer=selected.name;
+    requestPin({title:editing?'Save lead update':'Save lead',subtitle:'Confirm sales update for '+data.customer,onSuccess:user=>{
+      const now=new Date().toISOString(),closed=['Won','Lost'].includes(data.stage),status=data.stage==='Won'?'won':data.stage==='Lost'?'lost':'open';
+      const event={date:now,label:editing?'Lead updated · '+data.stage:'Lead created · '+data.stage,text:[data.details,'Next action: '+(closed?'Closed':data.followUpDate+' · '+data.nextActionReason),'Responsible: '+users.find(u=>u.id===data.ownerId)?.name,data.category==='Kitchen'?'Designer: '+(data.designerName||'Not assigned')+' · '+data.handoverStatus:'',data.handoverNotes,data.lossReason&&data.stage==='Lost'?'Lost: '+data.lossReason:''].filter(Boolean).join(' · '),by:user.name};
+      const changed={...data,ownerName:users.find(u=>u.id===data.ownerId).name,status,followUpDate:closed?'':data.followUpDate,lossReason:data.stage==='Lost'?data.lossReason:'',updatedAudit:auditStamp(user,editing?'Lead updated':'Lead created')};
+      if(existing){const previous=normalizeStage(existing);Object.assign(existing,changed);if(closed&&previous!==data.stage)existing.closedAt=now;else if(!closed)existing.closedAt=null;existing.events=[...(existing.events||[]),event];}
+      else leads.unshift({...changed,id:'L'+Date.now()+'-'+Math.random().toString(36).slice(2,7),createdAt:now,closedAt:closed?now:null,audit:auditStamp(user,'Lead created'),events:[event]});
+      storage.set('bdm_leads',leads);if(!editing)updateTargetHistory(user);renderLeads();
+    }});
+  };
+}
+function validateSalesLead(data,existing){
+  if(!data.customerId||!leadFormCustomers().some(c=>c.id===data.customerId))return 'Choose a customer.';
+  if(!data.details)return 'Describe the sales opportunity.';
+  if(!users.some(u=>u.id===data.ownerId&&(u.active!==false||u.id===existing?.ownerId)))return 'Choose the staff member responsible for this lead.';
+  if(!Number.isFinite(data.value)||data.value<0||!Number.isFinite(data.margin)||data.margin>data.value)return 'Check the estimated value and margin.';
+  if(data.quoteNo&&!/^\d{6}$/.test(data.quoteNo))return 'Quotation number must be exactly 6 digits.';
+  if(['Quoted','Awaiting decision'].includes(data.stage)&&!data.quoteNo)return 'Add the six-digit quotation number for a quoted lead.';
+  const closed=['Won','Lost'].includes(data.stage);
+  if(!closed&&(!data.followUpDate||!data.nextActionReason))return 'Set a next action date and describe what needs to happen.';
+  if(!closed&&data.followUpDate<isoToday()&&data.followUpDate!==existing?.followUpDate)return 'Choose today or a future next action date.';
+  if(data.stage==='Lost'&&!data.lossReason)return 'Choose a lost reason.';
+  if(data.stage==='Appointment booked'&&!data.appointmentDate&&data.category==='Kitchen')return 'Set the kitchen appointment date.';
+  return validateHandover(data);
+}
+renderLeadEditor=function(id){const l=leads.find(l=>l.id===id);if(l)renderSalesLeadForm(l);else renderLeads();};
+const salesCustomerRenderer=renderCustomer;
+renderCustomer=function(msg=''){
+  salesCustomerRenderer(msg);const c=queueSnapshot?.[queueIndex];const history=document.getElementById('customerTimeline');if(!c||!history)return;
+  history.insertAdjacentHTML('afterend','<button class="wide-btn secondary" id="customerAddLead">Add sales lead</button>');
+  document.getElementById('customerAddLead').onclick=()=>renderSalesLeadForm(null,{id:String(c.id),name:c.name});
+};
+const salesOutcomeRenderer=renderOutcome;
+renderOutcome=function(type,c){
+  salesOutcomeRenderer(type,c);if(type!=='quote')return;
+  document.getElementById('saveNext').insertAdjacentHTML('beforebegin',kitchenHandoverFields('quote'));
+  const category=document.getElementById('leadCategory');category.onchange=()=>{document.getElementById('quoteKitchen').hidden=category.value!=='Kitchen';};category.onchange();
+  document.getElementById('quoteKitchen').insertAdjacentHTML('afterend',`<div class="field" id="quoteLossWrap"><label for="quoteLoss">Lost reason</label><select id="quoteLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option>${esc(r)}</option>`).join('')}</select></div>`);
+  const stage=document.getElementById('leadStage');stage.onchange=()=>{document.getElementById('quoteLossWrap').hidden=stage.value!=='Lost';};stage.onchange();
+  const save=document.getElementById('saveNext').onclick;document.getElementById('saveNext').onclick=()=>{
+    const h=readKitchenHandover('quote',category.value);let error=validateHandover(h);
+    if(stage.value==='Lost'&&!document.getElementById('quoteLoss').value)error='Choose a lost reason.';
+    if(stage.value==='Appointment booked'&&category.value==='Kitchen'&&!h.appointmentDate)error='Set the kitchen appointment date.';
+    if(!['Won','Lost'].includes(stage.value)&&(!document.getElementById('follow').value||!document.getElementById('nextReason').value.trim()))error='Set a next action date and reason for this lead.';
+    if(error){alert(error);return;}save();
+  };
 };
 const originalImport=renderImport;
 renderImport=function(){
