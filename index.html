@@ -812,6 +812,22 @@ html,body{max-width:100%;overflow-x:clip}
 #app .history-card{min-width:0;overflow-wrap:anywhere}
 #app .facts{grid-template-columns:repeat(2,minmax(0,1fr))}
 
+
+/* Customer search and the combined daily work list. */
+.brand-block{min-width:0}.header-tools{gap:6px;flex-shrink:0}
+#customerSearchBtn{display:flex;align-items:center;justify-content:center;width:40px;height:44px}
+.customer-search label{display:block;font-weight:800;margin-bottom:8px}
+.customer-search input{width:100%;padding:13px;border:1px solid #afaeaa;border-radius:4px;font:inherit}
+.customer-search input:focus-visible{outline:2px solid #d22630;outline-offset:2px}
+.customer-result{min-height:64px;overflow-wrap:anywhere}
+.customer-result b,.customer-result span{display:block}.customer-result span{margin-top:5px}
+.customer-search+.list,.followup-list{margin-top:12px}
+.due-preview-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;min-height:64px;background:#fff;color:#20201e;border:1px solid #d7d4cc;border-radius:4px;padding:12px;margin-top:8px}
+.due-preview-item span:first-child{min-width:0}.due-preview-item b,.due-preview-item small{display:block;overflow-wrap:anywhere}
+.due-preview-item small{color:#646363;margin-top:4px;line-height:1.4}.due-preview-item .badge{flex-shrink:0}
+.due-preview .dashboard-title{margin:0}.due-preview .filter-btn{min-height:44px}
+@media(max-width:380px){.topbar{padding-inline:12px}.brand-word{font-size:18px}.eyebrow{font-size:10px}.header-tools .icon-btn{width:40px;height:44px}.topbar h1{font-size:26px}}
+
 </style>
 </head>
 <body>
@@ -822,7 +838,7 @@ html,body{max-width:100%;overflow-x:clip}
         <div class="eyebrow">Business Development</div>
         <h1 id="pageTitle">Today</h1>
       </div>
-      <div class="header-tools"><button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button><button class="icon-btn" id="homeBtn" aria-label="Home">⌂</button></div>
+      <div class="header-tools"><button class="icon-btn" id="customerSearchBtn" aria-label="Find customer"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10" cy="10" r="6"></circle><path d="m15 15 6 6"></path></svg></button><button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button><button class="icon-btn" id="homeBtn" aria-label="Home">⌂</button></div>
     </header>
 
     <main id="app"></main>
@@ -2202,11 +2218,11 @@ function renderCustomer(successMsg=''){
     : `<div class="phone" style="color:#71817d">Telephone not in Data tab</div>`;
   app.innerHTML = `
     ${successMsg?`<div class="success">${successMsg}</div>`:''}
-    <div class="row"><div class="sub">Customer ${queueIndex+1} of ${q.length}</div><div class="sub">${c.id}</div></div>
+    <div class="row"><div class="sub">Customer ${queueIndex+1} of ${q.length}</div><div class="sub">${escapeHtml(c.id)}</div></div>
     <div class="progress"><div style="width:${pct}%"></div></div>
     <section class="customer-card">
-      ${c.workflowLabel?`<div class="why-call"><small>WHY AM I CALLING?</small><b>${c.workflowLabel}</b><span>${c.offer}</span></div>`:''}
-      <h2>${c.name}</h2>
+      ${c.workflowLabel?`<div class="why-call"><small>WHY AM I CALLING?</small><b>${escapeHtml(c.workflowLabel)}</b><span>${escapeHtml(c.offer)}</span></div>`:''}
+      <h2>${escapeHtml(c.name)}</h2>
       ${phoneBlock}
       <div class="facts">
         <div class="fact"><small>Last trade</small><b>${c.last}</b></div>
@@ -2223,13 +2239,13 @@ function renderCustomer(successMsg=''){
           <div class="fact"><small>Lead success</small><b>${s.successRate.toFixed(1)}%</b></div>
         </div>`;
       })()}
-      <div class="offer"><small>Recommended action</small><b>${c.offer}</b><div class="sub">${c.pattern}</div></div>
+      <div class="offer"><small>Recommended action</small><b>${escapeHtml(c.offer)}</b><div class="sub">${escapeHtml(c.pattern)}</div></div>
       ${c.workflow==='newNurture'?`<div class="workflow-detail"><b>${nurtureRecord(c.id).newContacts} of 4 nurture conversations complete</b><span>${c.daysOpen} days open · ${c.tx} trades</span></div>`:''}
       ${c.workflow==='oldNurture'?`<div class="workflow-detail danger"><b>P${c.months} · closure at P15</b><span>${nurtureRecord(c.id).oldContacts} nurture contacts recorded</span></div>`:''}
       ${c.workflow==='thanks'?`<div class="workflow-detail"><b>${money(c.recentSpend)} spent in last 30 days</b>${(c.recentTransactions||[]).map(t=>`<span>${t.date} · ${money(t.value)} · ${t.category||'Transaction'}${t.detail?' · '+t.detail:''}</span>`).join('')||'<span>No transaction-level detail supplied.</span>'}</div>`:''}
       <div class="row" style="margin-top:10px"><span class="score-pill">${c.opportunityScore||0}</span><span class="sub">Opportunity score</span></div>
       ${bestTimeForCustomer(c.id)?`<div class="best-time" style="margin-top:8px">Best time to call: ${bestTimeForCustomer(c.id)}</div>`:''}
-      <p class="sub"><b>Last note:</b> ${c.lastnote}</p>
+      <p class="sub"><b>Last note:</b> ${escapeHtml(c.lastnote)}</p>
       <div class="quick-actions">
         <button class="good" data-outcome="contact">Spoke to customer</button>
         <button class="warn" data-outcome="voicemail">Voicemail left</button>
@@ -2963,8 +2979,11 @@ if(!reportMetadata.customers&&latestSnapshot())reportMetadata.customers={filenam
 if(!reportMetadata.ytd&&ytdReport?.customers)reportMetadata.ytd={filename:ytdReport.filename||'YTD report',uploadedAt:ytdReport.uploadedAt||ytdReport.date||isoToday(),rows:ytdReport.customers.length,warnings:[]};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function ownDue(userId=activeUserId){
-  return [...followups.filter(f=>!f.completedAt).map(f=>({...f,kind:'task'})),...leads.filter(l=>!['won','lost'].includes(l.status)&&l.followUpDate).map(l=>({id:l.id,customerId:l.customerId,customer:l.customer,ownerId:l.ownerId,date:l.followUpDate,reason:'Quote '+(l.quoteNo||'')+' · '+(l.nextActionReason||l.details||l.stage),kind:'lead'}))]
-    .filter(f=>(!userId||f.ownerId===userId)&&f.date<=isoToday()).sort((a,b)=>a.date.localeCompare(b.date));
+  return followupItems(userId).filter(f=>f.date<=isoToday());
+}
+function followupItems(userId=activeUserId){
+  return [...followups.filter(f=>!f.completedAt).map(f=>({...f,kind:'task'})),...leads.filter(l=>!leadIsClosed(l)&&l.followUpDate).map(l=>({id:l.id,customerId:l.customerId,customer:l.customer,ownerId:l.ownerId,date:l.followUpDate,reason:l.nextActionReason||l.details||l.stage,quoteNo:l.quoteNo,kind:'lead'}))]
+    .filter(f=>(userId==null||f.ownerId===userId)&&/^\d{4}-\d{2}-\d{2}$/.test(f.date||'')).sort((a,b)=>a.date.localeCompare(b.date)||String(a.customer||'').localeCompare(String(b.customer||'')));
 }
 function allCallReasons(c){
   const raw=currentCustomerModel()?.enriched.find(x=>String(x.customer)===String(c.id));
@@ -3002,6 +3021,47 @@ function customerForFollowup(f,candidates=Object.values(liveGroups()).flat()){
     months:n(historical?.recency),sales:n(historical?.salesMAT),tx:n(historical?.transactionsMAT)};
 }
 
+function customerDirectory(){
+  const found=new Map(),latest=latestSnapshot();
+  const add=(id,name,phone='',raw=null,current=false)=>{
+    id=String(id??'').trim();if(!id)return;
+    const existing=found.get(id);
+    if(existing){if(!existing.phone&&phone)existing.phone=String(phone).trim();return;}
+    found.set(id,{id,name:String(name||id),phone:String(phone||'').trim(),raw,current});
+  };
+  (latest?.customers||[]).forEach(c=>add(c.customer,c.name,c.phone||c.telephone,c,true));
+  if(!latest)Object.values(demoCustomers).flat().forEach(c=>add(c.id,c.name,c.phone,c,true));
+  [...snapshots].reverse().forEach(s=>(s.customers||[]).forEach(c=>add(c.customer,c.name,c.phone||c.telephone,c,false)));
+  (ytdReport?.customers||[]).forEach(c=>add(c.customer,c.name,c.phone||c.telephone));
+  [...leads,...followups,...activity].forEach(c=>add(c.customerId,c.customer,c.phone));
+  return [...found.values()].sort((a,b)=>a.name.localeCompare(b.name));
+}
+function phoneSearchDigits(value){const digits=String(value||'').replace(/\D/g,'');return digits.length===14&&digits.startsWith('0044')?'0'+digits.slice(4):digits.length===12&&digits.startsWith('44')?'0'+digits.slice(2):digits;}
+function matchingCustomers(query,customers=customerDirectory()){
+  const text=String(query||'').trim().toLowerCase(),digits=phoneSearchDigits(text),phoneQuery=/^[+\d\s().-]+$/.test(text);
+  return customers.filter(c=>!text||[c.name,c.id,c.phone].some(v=>String(v||'').toLowerCase().includes(text))||(phoneQuery&&digits.length>=3&&phoneSearchDigits(c.phone).includes(digits)));
+}
+let lastCustomerQuery='';
+function renderCustomerSearch(query=''){
+  currentView='customers';title.textContent='Find customer';setNav('');
+  const customers=customerDirectory();
+  app.innerHTML='<section class="form-card customer-search"><label for="customerQuery">Find a customer</label><input id="customerQuery" type="search" autocomplete="off" placeholder="Name, account number or phone"><p class="sub" id="customerMatchCount" role="status"></p></section><section class="list" id="customerSearchResults"></section>';
+  const input=document.getElementById('customerQuery');input.value=query;
+  const paint=()=>{
+    lastCustomerQuery=input.value;const matches=matchingCustomers(input.value,customers);
+    document.getElementById('customerMatchCount').textContent=matches.length+' matching customers'+(matches.length>50?' · Showing the first 50. Refine your search.':'');
+    document.getElementById('customerSearchResults').innerHTML=matches.slice(0,50).map(c=>`<button class="group-card customer-result" data-customer-open="${esc(c.id)}"><b>${esc(c.name)}</b><span class="sub">Account ${esc(c.id)}${c.phone?' · '+esc(c.phone):''}</span>${!c.current?'<span class="sub">Not in latest customer report</span>':''}</button>`).join('')||'<div class="history-card">No matching customers. Try another name, account number or phone.</div>';
+    document.querySelectorAll('[data-customer-open]').forEach(button=>button.onclick=()=>{
+      const customer=customers.find(c=>c.id===button.dataset.customerOpen);
+      queueOwnerId=activeUserId;queueSnapshot=[customerForFollowup({customerId:customer.id,customer:customer.name,reason:'Check current work and upcoming jobs'})];
+      queueSnapshot[0].phone=customer.phone;queueKey='search';queueIndex=0;renderCustomer(customer.current?'':'Not in latest customer report. Check the account status before calling.');
+    });
+  };
+  input.oninput=paint;paint();
+}
+function openFollowupCall(item){
+  const customer=customerForFollowup(item);queueOwnerId=item.ownerId||activeUserId;queueSnapshot=[customer];queueKey='day';queueIndex=0;renderCustomer();
+}
 const originalHome=renderHome;
 renderHome=function(){
   originalHome();
@@ -3012,6 +3072,12 @@ renderHome=function(){
   period.insertAdjacentHTML('afterend',`<section class="today-start"><div class="today-start-heading"><h2>Start my day</h2><span class="today-user">${u?esc(u.name):'No user selected'}</span></div><p class="today-next">${next?'Next customer: '+esc(next.name):u?'No calls waiting today.':'Select your user to load your daily targets and follow-ups.'}</p><button class="wide-btn" id="startDay">${u?'Start my day':'Select user and start'}</button><button class="today-follow-button" id="myFollowups"><span>My follow-ups</span><span class="today-follow-count ${overdue?'overdue':''}">${today} today · ${overdue} overdue</span></button></section>`);
   const targets=[...app.querySelectorAll('.dashboard-block')].find(block=>block.querySelector('.target-grid'));
   if(targets)app.insertBefore(targets,app.querySelector('.action-lanes'));
+  if(due.length){
+    const preview=document.createElement('section');preview.className='dashboard-block due-preview';
+    preview.innerHTML=`<div class="row"><h2 class="dashboard-title">Due today</h2><button class="filter-btn" id="allTodayWork">View all</button></div>${due.slice(0,3).map((item,i)=>`<button class="due-preview-item" data-due-preview="${i}"><span><b>${esc(item.customer||item.customerId)}</b><small>${esc(item.reason||'Follow-up')}</small></span><span class="badge ${item.date<isoToday()?'overdue':'today'}">${item.date<isoToday()?'Overdue':'Today'}</span></button>`).join('')}`;
+    app.insertBefore(preview,app.querySelector('.action-lanes'));document.getElementById('allTodayWork').onclick=()=>renderFollowups();
+    preview.querySelectorAll('[data-due-preview]').forEach(button=>button.onclick=()=>openFollowupCall(due[Number(button.dataset.duePreview)]));
+  }
   app.insertAdjacentHTML('beforeend','<div class="today-tools"><button id="reportCentre">Reports and backups</button><button id="switchDayUser">Switch user</button></div>');
   document.getElementById('startDay').onclick=()=>u?openQueue('day'):requestPin({title:'Start my day',subtitle:'Select your user',onSuccess:()=>openQueue('day')});
   const switchUser=document.getElementById('switchDayUser');
@@ -3044,14 +3110,22 @@ renderHistory=function(){
   const paint=()=>{const search=document.getElementById('historySearch').value.toLowerCase();const found=new Map();[...activity,...leads,...followups].forEach(a=>{if((String(a.customer||'')+' '+a.customerId).toLowerCase().includes(search))found.set(String(a.customerId),a.customer);});document.getElementById('historyResults').innerHTML=[...found].map(([id,name])=>`<button class="wide-btn secondary" data-history-id="${esc(id)}">${esc(name)} · ${esc(id)}</button>`).join('')||'<p>No matching customers.</p>';document.querySelectorAll('[data-history-id]').forEach(b=>b.onclick=()=>renderCustomerHistory(b.dataset.historyId,found.get(b.dataset.historyId)));};
   document.getElementById('historySearch').oninput=paint;paint();
 };
-function renderFollowups(userId=activeUserId){
-  title.textContent='Follow-ups';setNav('');
-  const tasks=[...followups.filter(f=>!f.completedAt&&f.ownerId===userId).map(f=>({...f,kind:'task'})),...leads.filter(l=>l.ownerId===userId&&!['won','lost'].includes(l.status)&&l.followUpDate).map(l=>({id:l.id,date:l.followUpDate,customerId:l.customerId,customer:l.customer,reason:l.nextActionReason||l.details||l.stage,kind:'lead'}))].sort((a,b)=>a.date.localeCompare(b.date));
-  app.innerHTML=`<section class="form-card"><h2>${esc(users.find(u=>u.id===userId)?.name||'My')} follow-ups</h2><button class="wide-btn secondary" id="followHome">Back to Today</button></section><section class="list">${tasks.map((f,i)=>`<div class="history-card"><span class="badge">${f.date<isoToday()?'Overdue':f.date===isoToday()?'Today':'Scheduled'}</span><h2>${esc(f.customer)}</h2><p>${esc(f.date)} · ${esc(f.reason)}</p><button class="wide-btn" data-follow-call="${i}">Call customer</button>${f.kind==='lead'?`<button class="wide-btn secondary" data-follow-lead="${esc(f.id)}">Update lead</button>`:''}</div>`).join('')||'<p>No follow-ups scheduled.</p>'}</section>`;
+function renderFollowups(userId=activeUserId,showFuture=false){
+  const manager=Boolean(activeUser()?.manager&&(!cloud.enabled||cloud.member?.manager));
+  if(userId!==activeUserId&&!manager)userId=activeUserId;
+  currentView='followups';title.textContent=showFuture?'Follow-ups':'Due today';setNav('');
+  const tasks=followupItems(userId).filter(f=>showFuture||f.date<=isoToday());
+  const overdue=tasks.filter(f=>f.date<isoToday()).length,today=tasks.filter(f=>f.date===isoToday()).length;
+  const scope=userId==null?'Depot':users.find(u=>u.id===userId)?.name||'My';
+  app.innerHTML=`<section class="form-card"><h2>${esc(scope)} follow-ups</h2><p class="sub">${today} today · ${overdue} overdue · calls and leads</p>${manager?`<div class="field"><label for="followScope">Show work for</label><select id="followScope"><option value="mine" ${userId===activeUserId?'selected':''}>My follow-ups</option><option value="all" ${userId==null?'selected':''}>All depot follow-ups</option>${users.filter(u=>u.active!==false&&u.id!==activeUserId).map(u=>`<option value="${esc(u.id)}" ${userId===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>`:''}<div class="toolbar"><button class="filter-btn ${!showFuture?'active':''}" id="followDueOnly">Due today</button><button class="filter-btn ${showFuture?'active':''}" id="followAllDates">All scheduled</button><button class="filter-btn" id="followHome">Back to Today</button></div></section><section class="list followup-list">${tasks.map((f,i)=>`<div class="history-card"><div class="row"><span class="badge ${f.date<isoToday()?'overdue':f.date===isoToday()?'today':''}">${f.date<isoToday()?'Overdue':f.date===isoToday()?'Today':'Scheduled'}</span><span class="sub">${f.kind==='lead'?'Lead':'Callback'} · ${esc(users.find(u=>u.id===f.ownerId)?.name||'Unassigned')}</span></div><h2>${esc(f.customer||f.customerId)}</h2><p>${esc(f.date)} · ${esc(f.reason)}</p>${f.quoteNo?`<p class="sub">Quote ${esc(f.quoteNo)}</p>`:''}<button class="wide-btn" data-follow-call="${i}">Call customer</button>${f.kind==='lead'?`<button class="wide-btn secondary" data-follow-lead="${esc(f.id)}">Update lead</button>`:''}</div>`).join('')||'<div class="history-card">'+(showFuture?'No follow-ups scheduled.':'No follow-ups due today.')+'</div>'}</section>`;
   document.getElementById('followHome').onclick=renderHome;
-  document.querySelectorAll('[data-follow-call]').forEach(b=>b.onclick=()=>{const f=tasks[+b.dataset.followCall];const c=customerForFollowup(f);queueOwnerId=userId;queueSnapshot=[c];queueKey='day';queueIndex=0;renderCustomer();});
-  document.querySelectorAll('[data-follow-lead]').forEach(b=>b.onclick=()=>renderLeadEditor(b.dataset.followLead));
+  document.getElementById('followDueOnly').onclick=()=>renderFollowups(userId,false);
+  document.getElementById('followAllDates').onclick=()=>renderFollowups(userId,true);
+  if(manager)document.getElementById('followScope').onchange=event=>renderFollowups(event.target.value==='all'?null:event.target.value==='mine'?activeUserId:event.target.value,showFuture);
+  document.querySelectorAll('[data-follow-call]').forEach(button=>button.onclick=()=>openFollowupCall(tasks[Number(button.dataset.followCall)]));
+  document.querySelectorAll('[data-follow-lead]').forEach(button=>button.onclick=()=>renderLeadEditor(button.dataset.followLead));
 }
+
 const originalOutcome=renderOutcome;
 renderOutcome=function(type,c){
   originalOutcome(type,c);
@@ -3175,7 +3249,13 @@ function validateSalesLead(data,existing){
 renderLeadEditor=function(id){const l=leads.find(l=>l.id===id);if(l)renderSalesLeadForm(l);else renderLeads();};
 const salesCustomerRenderer=renderCustomer;
 renderCustomer=function(msg=''){
-  salesCustomerRenderer(msg);const c=queueSnapshot?.[queueIndex];const history=document.getElementById('customerTimeline');if(!c||!history)return;
+  salesCustomerRenderer(msg);const c=queueSnapshot?.[queueIndex];const history=document.getElementById('customerTimeline');
+  if(queueKey==='search'){
+    const completed=document.getElementById('backGroups');
+    if(completed){completed.textContent='Back to search';completed.onclick=()=>renderCustomerSearch(lastCustomerQuery);}
+    else{const card=app.querySelector('.customer-card');if(card){card.insertAdjacentHTML('beforeend','<button class="wide-btn secondary" id="customerSearchBack">Back to search</button>');document.getElementById('customerSearchBack').onclick=()=>renderCustomerSearch(lastCustomerQuery);}}
+  }
+  if(!c||!history)return;
   history.insertAdjacentHTML('afterend','<button class="wide-btn secondary" id="customerAddLead">Add sales lead</button>');
   document.getElementById('customerAddLead').onclick=()=>renderSalesLeadForm(null,{id:String(c.id),name:c.name},renderCustomer);
 };
@@ -3291,6 +3371,7 @@ function renderStaffLogins(){
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
+document.getElementById('customerSearchBtn').onclick=()=>renderCustomerSearch();
 document.getElementById('settingsBtn').onclick=renderSettings;
 syncManagerSession();
 renderHome();
@@ -3299,4 +3380,3 @@ cloud.initialising=false;
 </script>
 </body>
 </html>
-
