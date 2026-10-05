@@ -1015,6 +1015,15 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 /* V31 actual won values */
 .won-actuals{border:1px solid #b7d0ca;border-left:4px solid #0f4a43;border-radius:6px;background:#eef5f3;padding:11px;margin-top:10px}
 .won-actuals .lead-form-grid{margin-top:8px}
+/* V32 survey controls + forecast */
+.survey-edit-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:10px}
+.survey-edit-actions button{border:1px solid #d7d4cc;border-radius:4px;background:#fff;padding:9px 6px;font-weight:800;font-size:12px}
+.survey-edit-actions button.primary{background:#0f4a43;color:#fff;border-color:#0f4a43}
+.forecast-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.forecast-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:11px}
+.forecast-card b{display:block;font-size:22px}.forecast-card small{display:block;color:#646363;margin-top:4px}
+.forecast-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #e4e2dc}
+.forecast-row:last-child{border-bottom:0}
 </style>
 </head>
 <body>
@@ -4673,6 +4682,79 @@ const actualSurveyConversion=surveyConversionMetrics;
 surveyConversionMetrics=function(){
   const m=actualSurveyConversion(),valid=surveys.filter(s=>s.status==='completed').map(s=>({survey:s,lead:leads.find(l=>l.id===s.leadId)})).filter(x=>x.lead&&normalizeStage(x.lead)==='Won');
   m.wonValue=valid.reduce((sum,x)=>sum+wonValueOf(x.lead),0);return m;
+};
+
+
+/* V32: reschedule/cancel surveys + weighted pipeline forecast. */
+function editSurveyDate(s,userId=null){
+  const next=prompt('New survey / appointment date (YYYY-MM-DD)',s.date||isoToday());
+  if(next===null)return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(next)||next<isoToday()){alert('Choose today or a future date.');return;}
+  requestPin({title:'Reschedule survey',onSuccess:user=>{
+    const old=s.date;s.date=next;s.updatedAt=new Date().toISOString();s.updatedBy=user.id;
+    storage.set('bdm_surveys',surveys);
+    const lead=leads.find(l=>l.id===s.leadId);
+    if(lead&&!leadIsClosed(lead)){lead.appointmentDate=next;lead.events=[...(lead.events||[]),{date:new Date().toISOString(),label:'Survey rescheduled',text:(old||'No date')+' → '+next,by:user.name}];storage.set('bdm_leads',leads);}
+    renderSurveys(userId);
+  }});
+}
+function cancelSurvey(s,userId=null){
+  if(!confirm('Cancel this survey / appointment?'))return;
+  requestPin({title:'Cancel survey',onSuccess:user=>{
+    s.status='cancelled';s.cancelledAt=new Date().toISOString();s.cancelledBy=user.id;storage.set('bdm_surveys',surveys);
+    const lead=leads.find(l=>l.id===s.leadId);
+    if(lead&&!leadIsClosed(lead)&&normalizeStage(lead)==='Appointment booked'){lead.stage='Contacted';lead.appointmentDate='';lead.events=[...(lead.events||[]),{date:new Date().toISOString(),label:'Survey cancelled',text:'Appointment cancelled; lead returned to Contacted',by:user.name}];storage.set('bdm_leads',leads);}
+    renderSurveys(userId);
+  }});
+}
+const surveyControlsRenderer=renderSurveys;
+renderSurveys=function(userId=null){
+  surveyControlsRenderer(userId);
+  document.querySelectorAll('.survey-list-item').forEach(item=>{
+    const id=item.querySelector('[data-survey-complete]')?.dataset.surveyComplete || item.querySelector('[data-survey-open]')?.closest('.survey-list-item')?.querySelector('[data-survey-open]')?.dataset.surveyOpen;
+    let s=null;
+    const complete=item.querySelector('[data-survey-complete]');
+    if(complete)s=surveys.find(x=>x.id===complete.dataset.surveyComplete);
+    if(!s){
+      const customerId=item.querySelector('[data-survey-open]')?.dataset.surveyOpen;
+      s=surveys.find(x=>String(x.customerId)===String(customerId)&&x.status!=='completed'&&x.status!=='cancelled')||surveys.find(x=>String(x.customerId)===String(customerId));
+    }
+    if(!s||s.status!=='booked')return;
+    const actions=document.createElement('div');actions.className='survey-edit-actions';
+    actions.innerHTML='<button class="primary">Reschedule</button><button>Cancel</button><button>Customer</button>';
+    actions.children[0].onclick=()=>editSurveyDate(s,userId);
+    actions.children[1].onclick=()=>cancelSurvey(s,userId);
+    actions.children[2].onclick=()=>renderCustomerRecord(s.customerId,()=>renderSurveys(userId));
+    const existing=item.querySelector('.manager-action-row');if(existing)existing.insertAdjacentElement('afterend',actions);else item.append(actions);
+  });
+};
+
+const STAGE_PROBABILITY={
+  'Opportunity':0.15,'Contacted':0.25,'Appointment booked':0.4,'Design in progress':0.55,
+  'Quoted':0.65,'Awaiting decision':0.8,'On hold':0.2,'Won':1,'Lost':0
+};
+function pipelineForecast(){
+  const open=leads.filter(l=>!leadIsClosed(l));
+  const current=currentSalesPeriodNumber(),period=open.filter(l=>leadRequiredPeriod(l)===current);
+  const weighted=list=>list.reduce((s,l)=>s+n(l.value)*(STAGE_PROBABILITY[normalizeStage(l)]??0.2),0);
+  const weightedMargin=list=>list.reduce((s,l)=>s+n(l.margin)*(STAGE_PROBABILITY[normalizeStage(l)]??0.2),0);
+  const stages={};open.forEach(l=>{const st=normalizeStage(l);if(!stages[st])stages[st]={count:0,value:0,weighted:0};stages[st].count++;stages[st].value+=n(l.value);stages[st].weighted+=n(l.value)*(STAGE_PROBABILITY[st]??0.2);});
+  return {open,period,total:open.reduce((s,l)=>s+n(l.value),0),weighted:weighted(open),periodValue:period.reduce((s,l)=>s+n(l.value),0),periodWeighted:weighted(period),periodMargin:weightedMargin(period),stages};
+}
+const forecastStatsRenderer=renderStats;
+renderStats=function(){
+  forecastStatsRenderer();
+  const f=pipelineForecast(),section=document.createElement('section');section.className='stat-section';
+  section.innerHTML='<div class="stat-section-title">Pipeline forecast</div><div class="forecast-grid"><div class="forecast-card"><b>'+money(f.total)+'</b><small>Total open pipeline</small></div><div class="forecast-card"><b>'+money(f.weighted)+'</b><small>Weighted forecast</small></div><div class="forecast-card"><b>'+money(f.periodValue)+'</b><small>Current-period pipeline</small></div><div class="forecast-card"><b>'+money(f.periodWeighted)+'</b><small>Current-period weighted sales</small></div></div><div class="settings-card" style="margin-top:9px">'+Object.entries(f.stages).sort((a,b)=>b[1].value-a[1].value).map(([stage,v])=>'<div class="forecast-row"><span>'+esc(stage)+'</span><b>'+money(v.value)+'</b><small>'+money(v.weighted)+' weighted</small></div>').join('')+'</div>';
+  app.prepend(section);
+};
+const forecastManagerRenderer=renderManager;
+renderManager=function(){
+  forecastManagerRenderer();if(!activeUser()?.manager)return;
+  const f=pipelineForecast(),section=document.createElement('section');section.className='form-card';
+  section.innerHTML='<h2>Sales forecast</h2><p class="sub">Stage-weighted view of current-period open pipeline.</p><div class="forecast-grid"><div class="forecast-card"><b>'+money(f.periodValue)+'</b><small>Pipeline</small></div><div class="forecast-card"><b>'+money(f.periodWeighted)+'</b><small>Weighted sales</small></div><div class="forecast-card"><b>'+money(f.periodMargin)+'</b><small>Weighted margin</small></div><div class="forecast-card"><b>'+f.period.length+'</b><small>Open opportunities</small></div></div>';
+  const board=[...app.querySelectorAll('.form-card')].find(x=>x.querySelector('h2')?.textContent==='Team leaderboard');
+  if(board)board.insertAdjacentElement('afterend',section);else app.prepend(section);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
