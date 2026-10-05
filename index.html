@@ -871,6 +871,18 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .manager-staff-head button{border:0;background:#edf2f0;border-radius:4px;padding:8px 10px;font-weight:800}
 .manager-lead-list .history-card{padding:13px}
 
+
+/* V16 manager performance funnel */
+.manager-funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.manager-funnel-step{background:#fff;border:1px solid #d7d4cc;border-radius:5px;padding:10px;text-align:center;min-width:0}
+.manager-funnel-step b{display:block;font-size:22px;line-height:1}
+.manager-funnel-step span{display:block;font-size:11px;font-weight:800;margin-top:6px}
+.manager-funnel-step small{display:block;font-size:10px;color:#646363;margin-top:3px}
+.loss-reason-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #e4e2dc}
+.loss-reason-row:last-child{border-bottom:0}
+.loss-reason-row b{font-size:13px}.loss-reason-row span{font-weight:900}
+@media(max-width:430px){.manager-funnel{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -3604,6 +3616,39 @@ renderManager=function(){
   const staffCards=[...app.querySelectorAll('.manager-user-card')];
   staffCards.forEach((card,i)=>{const user=active[i];if(!user)return;const actions=document.createElement('div');actions.className='manager-action-row';actions.innerHTML=`<button class="primary">Open ${esc(user.name)}</button><button>Follow-ups</button>`;actions.children[0].onclick=()=>renderManagerStaff(user.id);actions.children[1].onclick=()=>renderFollowups(user.id,true);card.append(actions);});
   app.querySelectorAll('.dashboard-block').forEach(block=>{if(block.querySelector('.dashboard-title')?.textContent==='Overdue leads')block.remove();});
+};
+
+
+/* V16: manager funnel and lost-reason intelligence. */
+const performanceManagerRenderer=renderManager;
+renderManager=function(){
+  performanceManagerRenderer();if(!activeUser()?.manager)return;
+  const p=periodInfo(new Date()),start=p.start instanceof Date?p.start:localDateOnly(p.start),end=p.end instanceof Date?p.end:localDateOnly(p.end);
+  const inPeriod=iso=>{if(!iso)return false;const d=new Date(iso);return d>=start&&d<=new Date(end.getFullYear(),end.getMonth(),end.getDate(),23,59,59);};
+  const calls=activity.filter(a=>a.iso&&inPeriod(a.iso)&&['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type));
+  const conversations=calls.filter(a=>['Spoke to customer','Quote given'].includes(a.type));
+  const periodLeads=leads.filter(l=>l.createdAt&&inPeriod(l.createdAt));
+  const won=periodLeads.filter(l=>normalizeStage(l)==='Won');
+  const contactRate=calls.length?conversations.length/calls.length*100:0;
+  const leadRate=conversations.length?periodLeads.length/conversations.length*100:0;
+  const winRate=periodLeads.length?won.length/periodLeads.length*100:0;
+  const funnel=document.createElement('section');funnel.className='form-card';
+  funnel.innerHTML=`<h2>Period performance funnel</h2><p class="sub">Calls through to won business for ${esc(p.label)}.</p><div class="manager-funnel">
+    <div class="manager-funnel-step"><b>${calls.length}</b><span>Calls</span><small>100%</small></div>
+    <div class="manager-funnel-step"><b>${conversations.length}</b><span>Conversations</span><small>${contactRate.toFixed(0)}% of calls</small></div>
+    <div class="manager-funnel-step"><b>${periodLeads.length}</b><span>Leads</span><small>${leadRate.toFixed(0)}% of conversations</small></div>
+    <div class="manager-funnel-step"><b>${won.length}</b><span>Won</span><small>${winRate.toFixed(0)}% of leads</small></div>
+  </div></section>`;
+  const attention=app.querySelector('.form-card');
+  if(attention)attention.insertAdjacentElement('afterend',funnel);else app.prepend(funnel);
+
+  const losses={};
+  leads.filter(l=>normalizeStage(l)==='Lost').forEach(l=>{const reason=l.lossReason||'No reason recorded';losses[reason]=(losses[reason]||0)+1;});
+  const lossSection=document.createElement('section');lossSection.className='form-card';
+  const entries=Object.entries(losses).sort((a,b)=>b[1]-a[1]);
+  lossSection.innerHTML=`<h2>Why leads are being lost</h2><p class="sub">All recorded lost leads. This highlights coaching, pricing and follow-up patterns.</p>${entries.map(([reason,count])=>`<div class="loss-reason-row"><b>${esc(reason)}</b><span>${count}</span></div>`).join('')||'<p class="muted">No lost reasons recorded yet.</p>'}`;
+  const analytics=[...app.querySelectorAll('.dashboard-block')].find(b=>b.querySelector('.dashboard-title')?.textContent==='Call analytics');
+  if(analytics)analytics.insertAdjacentElement('beforebegin',lossSection);else app.append(lossSection);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
