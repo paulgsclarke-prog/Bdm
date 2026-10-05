@@ -839,7 +839,7 @@ body{
 (async function(){
 // Inlined into index.html: the frontend remains a single HTML file.
 const cloud={enabled:false,initialising:true,member:null,data:{},revision:0,pending:false,blocked:false,inFlight:null,timer:null,
-  banner(message){document.getElementById('cloudStatus').textContent=message;},
+  banner(message){document.getElementById('cloudStatus').textContent=message;const bar=document.getElementById('cloudSaveBar');if(bar)bar.hidden=message==='All changes saved';},
   download(data,suffix='backup'){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}));a.href=url;a.download='bdm-'+suffix+'-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},
   get(key,fallback){if(key==='bdm_active_user')return this.member.userId;if(key==='bdm_manager_session')return null;return Object.hasOwn(this.data,key)?structuredClone(this.data[key]):(['bdm_activity','bdm_leads','bdm_snapshots'].includes(key)?[]:fallback);},
   set(key,value){if(['bdm_active_user','bdm_manager_session'].includes(key))return;if(this.blocked)throw Error('Shared saving is paused. Download your pending changes before reloading.');this.data[key]=structuredClone(value);this.pending=true;this.banner('Saving changes…');clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush().catch(()=>{}),200);},
@@ -869,7 +869,7 @@ const cloud={enabled:false,initialising:true,member:null,data:{},revision:0,pend
         return false;
       }
       gate.remove();shell.hidden=false;
-      const bar=document.createElement('div');bar.style.cssText='background:#fff;padding:12px;border-bottom:1px solid #deded8;position:sticky;top:0;z-index:100';bar.innerHTML='<span id="cloudStatus" role="status">All changes saved</span><div style="display:flex;gap:8px;margin-top:6px"><button id="cloudRetry">Retry save</button><button id="cloudBackup">Download backup</button><button id="cloudReload">Refresh data</button><button id="cloudSignout">Sign out</button></div>';shell.prepend(bar);
+      const bar=document.createElement('div');bar.id='cloudSaveBar';bar.hidden=true;bar.style.cssText='background:#fff;padding:12px;border-bottom:1px solid #deded8;position:sticky;top:0;z-index:100';bar.innerHTML='<span id="cloudStatus" role="status">All changes saved</span><div style="display:flex;gap:8px;margin-top:6px"><button id="cloudRetry">Retry save</button><button id="cloudBackup">Download backup</button><button id="cloudReload">Refresh data</button><button id="cloudSignout">Sign out</button></div>';shell.prepend(bar);
       document.getElementById('cloudRetry').onclick=()=>this.flush().catch(()=>{});
       document.getElementById('cloudBackup').onclick=()=>this.download(this.data,this.pending?'unsaved-changes':'backup');
       document.getElementById('cloudReload').onclick=()=>{if(this.pending||this.inFlight){this.download(this.data,'unsaved-changes');if(!confirm('Your pending changes were downloaded. Reload and use the latest shared data?'))return;}location.reload();};
@@ -2952,7 +2952,9 @@ renderHome=function(){
   const u=activeUser(), due=u?ownDue(u.id):[], next=u?dailyQueue()[0]:null;
   app.insertAdjacentHTML('afterbegin',`<section class="form-card"><h2>Start my day</h2><p>${u?esc(u.name)+' · '+due.filter(f=>f.date<isoToday()).length+' overdue follow-ups':'Select your user to load your daily targets and follow-ups.'}</p><p class="muted">${next?'Next customer: '+esc(next.name):u?'No calls waiting today.':''}</p><button class="wide-btn" id="startDay">${u?'Start my day':'Select user and start'}</button><button class="wide-btn secondary" id="switchDayUser">Switch user</button><button class="wide-btn secondary" id="myFollowups">My follow-ups</button><button class="wide-btn secondary" id="reportCentre">Reports and backups</button></section>`);
   document.getElementById('startDay').onclick=()=>u?openQueue('day'):requestPin({title:'Start my day',subtitle:'Select your user',onSuccess:()=>openQueue('day')});
-  document.getElementById('switchDayUser').onclick=()=>requestPin({title:'Switch user',subtitle:'Load your targets and follow-ups',onSuccess:renderHome});
+  const switchUser=document.getElementById('switchDayUser');
+  if(cloud.enabled){switchUser.textContent='Sign out';switchUser.onclick=async()=>{try{await cloud.flush();if(cloud.pending)throw Error('Save or download your pending changes before signing out.');await Clerk.signOut({redirectUrl:location.origin+'/'});}catch(error){alert(error.message);}};}
+  else switchUser.onclick=()=>requestPin({title:'Switch user',subtitle:'Load your targets and follow-ups',onSuccess:renderHome});
   document.getElementById('myFollowups').onclick=()=>u?renderFollowups():requestPin({title:'My follow-ups',onSuccess:renderFollowups});
   document.getElementById('reportCentre').onclick=renderImport;
 };
