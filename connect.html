@@ -24,6 +24,7 @@ async function start(){
     if(access.status===403){status.textContent='Your account is ready. Ask your depot manager to link your login to your BDM user.';return;}
     if(!access.ok){status.textContent='Your account is ready. Depot setup is still being completed.';return;}
     const {member}=await access.json();status.textContent='Your account is linked to BDM user '+member.userId+'.';
+    const open=document.createElement('a');open.href='/';open.textContent='Open BDM';open.style.cssText='display:inline-block;background:#0f4a43;color:white;padding:14px 20px;border-radius:12px;text-decoration:none;margin:16px 12px 16px 0';status.after(open);
   }catch(e){status.textContent=e.message;}
 }
 start();

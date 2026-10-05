@@ -4,6 +4,8 @@ This draft adds protected Vercel APIs for the existing single-file BDM frontend.
 The single-file index.html now has gated Clerk sign-in, verified user identity,
 shared reads/writes, explicit initial migration and save/retry/conflict controls.
 BDM_SHARED_ENABLED is off by default; account setup is available at /connect.html.
+Production activation is configured after the owner confirms the linked account.
+Initial migration remains an explicit action in the signed-in owner's browser.
 
 ## Completed
 
