@@ -3862,19 +3862,16 @@ renderManager=function(){
   const overdue=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate&&l.followUpDate<today);
   const due=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate===today);
   const stale=leads.filter(l=>!leadIsClosed(l)&&leadAgeDays(l)>28);
-  const missing=leads.filter(l=>!leadIsClosed(l)&&!l.followUpDate);
   const summary=document.createElement('section');summary.className='form-card';
   summary.innerHTML=`<h2>Needs attention</h2><p class="sub">Tap straight into the work that needs intervention.</p><div class="manager-attention">
     <button class="manager-attention-card" id="mgrOverdue"><div class="row"><div><b>Overdue leads</b><small>Past their next action date</small></div><span class="badge overdue">${overdue.length}</span></div></button>
     <button class="manager-attention-card warning" id="mgrDue"><div class="row"><div><b>Due today</b><small>Lead follow-ups due today</small></div><span class="badge today">${due.length}</span></div></button>
     <button class="manager-attention-card warning" id="mgrStale"><div class="row"><div><b>29+ day leads</b><small>Old open opportunities needing review</small></div><span class="badge">${stale.length}</span></div></button>
-    <button class="manager-attention-card" id="mgrMissing"><div class="row"><div><b>No follow-up date</b><small>Open leads without a next action date</small></div><span class="badge">${missing.length}</span></div></button>
   </div></section>`;
   app.prepend(summary);
   document.getElementById('mgrOverdue').onclick=()=>managerOpenLeadList('Overdue leads',overdue);
   document.getElementById('mgrDue').onclick=()=>managerOpenLeadList('Leads due today',due);
   document.getElementById('mgrStale').onclick=()=>managerOpenLeadList('Leads 29+ days old',stale);
-  document.getElementById('mgrMissing').onclick=()=>managerOpenLeadList('Leads with no follow-up date',missing);
   const staffCards=[...app.querySelectorAll('.manager-user-card')];
   staffCards.forEach((card,i)=>{const user=active[i];if(!user)return;const actions=document.createElement('div');actions.className='manager-action-row';actions.innerHTML=`<button class="primary">Open ${esc(user.name)}</button><button>Follow-ups</button>`;actions.children[0].onclick=()=>renderManagerStaff(user.id);actions.children[1].onclick=()=>renderFollowups(user.id,true);card.append(actions);});
   app.querySelectorAll('.dashboard-block').forEach(block=>{if(block.querySelector('.dashboard-title')?.textContent==='Overdue leads')block.remove();});
@@ -5187,6 +5184,52 @@ renderHome=function(){
   if(nba){
     document.getElementById('simpleStart').onclick=()=>openQueue('day');
     document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
+  }
+};
+
+
+/* V42: personal period targets on Home; depot targets remain visible to managers. */
+function userPeriodProgress(userId){
+  const p=currentSalesPeriodNumber(),target=userTarget(userId),range=periodRange(p);
+  const start=workingDayKey(range.start),end=workingDayKey(range.end);
+  const created=leads.filter(l=>String(l.ownerId)===String(userId)&&(()=>{const d=recordDateKey(l.createdAt||l.audit?.iso);return d&&d>=start&&d<=end;})());
+  const live=created.filter(l=>normalizeStage(l)!=='Lost');
+  return {
+    target,
+    leads:created.length,
+    pipeline:live.reduce((s,l)=>s+n(l.value),0),
+    margin:live.reduce((s,l)=>s+n(l.margin),0)
+  };
+}
+function personalPeriodRings(userId){
+  const x=userPeriodProgress(userId),rings=[];
+  if(n(x.target.leads)>0)rings.push(homeRing('My leads',x.leads,x.target.leads));
+  if(n(x.target.pipeline)>0)rings.push(homeRing('My pipeline',x.pipeline,x.target.pipeline,'money'));
+  if(n(x.target.margin)>0)rings.push(homeRing('My margin',x.margin,x.target.margin,'money'));
+  return rings;
+}
+const allTargetHomeRenderer=renderHome;
+renderHome=function(){
+  allTargetHomeRenderer();
+  const u=activeUser();if(!u)return;
+  const periodSection=[...app.querySelectorAll('.ring-section')].find(s=>s.querySelector('.ring-section-head h2')?.textContent==='This period');
+  if(!periodSection)return;
+  const personal=personalPeriodRings(u.id);
+  if(personal.length){
+    const currentGrid=periodSection.querySelector('.ring-grid');
+    const wrap=document.createElement('div');
+    wrap.innerHTML='<div class="sub" style="font-weight:800;margin:0 0 10px">My period targets</div><div class="ring-grid">'+personal.join('')+'</div>';
+    if(currentGrid){
+      currentGrid.insertAdjacentElement('beforebegin',wrap);
+      if(u.manager){
+        const depotLabel=document.createElement('div');depotLabel.className='sub';depotLabel.style.cssText='font-weight:800;margin:16px 0 10px';depotLabel.textContent='Depot period targets';currentGrid.insertAdjacentElement('beforebegin',depotLabel);
+      }else{
+        currentGrid.remove();
+      }
+    }else periodSection.append(wrap);
+  }
+  if(!u.manager){
+    const depotLabel=[...periodSection.querySelectorAll('.sub')].find(x=>x.textContent==='Depot period targets');depotLabel?.remove();
   }
 };
 
