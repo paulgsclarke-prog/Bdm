@@ -1002,6 +1002,16 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .conversion-strip b{display:block;font-size:22px}.conversion-strip small{display:block;color:#646363;margin-top:4px}
 .campaign-metric-row{display:grid;grid-template-columns:minmax(0,1fr) repeat(4,auto);gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid #e4e2dc;font-size:12px}
 .campaign-metric-row:last-child{border-bottom:0}.campaign-metric-row b{font-size:12px}
+/* V29 next-best-action + product gaps */
+.next-action-card{border:1px solid #b7d0ca;border-left:5px solid #0f4a43;border-radius:7px;background:#f1f7f5;padding:14px;margin:12px 0}
+.next-action-card small{display:block;color:#56706a;font-weight:800;letter-spacing:.04em}
+.next-action-card h2{margin:5px 0 3px}.next-action-card p{margin:0;color:#4f5f5b}
+.next-action-card .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.next-action-card button{min-height:44px;border-radius:5px;border:1px solid #0f4a43;background:#fff;color:#0f4a43;font-weight:850}
+.next-action-card button.primary{background:#0f4a43;color:#fff}
+.product-gap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.product-gap-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:12px;text-align:left}
+.product-gap-card b{display:block;font-size:24px}.product-gap-card span{display:block;font-weight:850;margin-top:5px}.product-gap-card small{display:block;color:#646363;margin-top:4px}
 </style>
 </head>
 <body>
@@ -4453,6 +4463,61 @@ renderManager=function(){
   section.innerHTML='<h2>Team leaderboard</h2><p class="sub">Current-period activity and converted business.</p><div class="leaderboard">'+board.map((r,i)=>'<button class="leader-row" data-board-user="'+esc(r.user.id)+'"><span class="leader-rank">'+(i+1)+'</span><div><b>'+esc(r.user.name)+'</b><small>'+r.calls+' calls · '+r.conversations+' conversations · '+r.leads+' leads · '+r.surveysDone+' surveys</small></div><div><b>'+r.won+' won</b><small>'+money(r.value)+'</small></div></button>').join('')+'</div>';
   const banner=app.querySelector('.period-banner');if(banner)banner.insertAdjacentElement('afterend',section);else app.prepend(section);
   document.querySelectorAll('[data-board-user]').forEach(b=>b.onclick=()=>renderManagerStaff(b.dataset.boardUser));
+};
+
+
+/* V29: exact next best action on Today + product/category gap reports. */
+function nextBestActionForUser(){
+  const due=ownDue(activeUserId);
+  if(due.length){
+    const f=due[0],c=customerForFollowup(f);
+    return {customer:c,reason:f.reason||'Follow-up due',source:'followup'};
+  }
+  const q=dailyQueue();
+  if(q.length)return {customer:q[0],reason:q[0].offer||q[0].workflowLabel||'Priority customer call',source:'queue'};
+  return null;
+}
+const nbaHomeRenderer=renderHome;
+renderHome=function(){
+  nbaHomeRenderer();
+  const nba=nextBestActionForUser();
+  if(!nba)return;
+  const c=nba.customer,card=document.createElement('section');card.className='next-action-card';
+  card.innerHTML='<small>NEXT BEST ACTION</small><h2>'+esc(c.name)+'</h2><p>'+esc(nba.reason)+'</p><div class="actions"><button class="primary" id="nbaCall">Start call</button><button id="nbaRecord">Customer record</button></div>';
+  const banner=app.querySelector('.period-banner');if(banner)banner.insertAdjacentElement('afterend',card);else app.prepend(card);
+  document.getElementById('nbaCall').onclick=()=>{queueOwnerId=activeUserId;queueKey='day';queueIndex=0;queueSnapshot=[c];renderCustomer();};
+  document.getElementById('nbaRecord').onclick=()=>renderCustomerRecord(c.id,renderHome);
+};
+
+function productGapData(){
+  const model=currentCustomerModel();if(!model)return {};
+  const gaps={Appliances:[],Worktops:[],Joinery:[],Flooring:[],Sinks:[],Taps:[],Hardware:[]};
+  model.enriched.forEach(c=>{
+    if(n(c.salesMAT)<=0)return;
+    const fields={
+      Appliances:n(c.appliancesMAT),
+      Worktops:n(c.worktopsMAT),
+      Joinery:n(c.joineryMAT),
+      Flooring:n(c.flooringMAT),
+      Sinks:n(c.sinksMAT),
+      Taps:n(c.tapsMAT),
+      Hardware:n(c.hardwareMAT)
+    };
+    Object.entries(fields).forEach(([label,value])=>{if(value===0)gaps[label].push(c);});
+  });
+  return gaps;
+}
+function openProductGap(label,list){
+  renderDatabaseChangeList(label+' opportunities',list,'Discuss '+label.toLowerCase()+' and identify an opportunity',c=>'<span class="badge">'+money(c.salesMAT)+'</span>');
+}
+const productReportsRenderer=renderReports;
+renderReports=function(){
+  productReportsRenderer();
+  const gaps=productGapData(),entries=Object.entries(gaps).sort((a,b)=>b[1].length-a[1].length);
+  const section=document.createElement('section');section.className='form-card';
+  section.innerHTML='<h2>Product/category opportunities</h2><p class="sub">Active customers with MAT sales but no recorded spend in a product category.</p><div class="product-gap-grid">'+entries.map(([label,list])=>'<button class="product-gap-card" data-product-gap="'+esc(label)+'"><b>'+list.length+'</b><span>'+esc(label)+'</span><small>Potential cross-sell opportunity</small></button>').join('')+'</div>';
+  app.append(section);
+  document.querySelectorAll('[data-product-gap]').forEach(b=>{const e=entries.find(x=>x[0]===b.dataset.productGap);b.onclick=()=>openProductGap(e[0],e[1]);});
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
