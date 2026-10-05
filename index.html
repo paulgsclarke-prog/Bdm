@@ -1097,13 +1097,55 @@ body.manager-session #bottomNav .manager-only{display:block!important}
   <script>
 (async function(){
 // Inlined into index.html: the frontend remains a single HTML file.
-const cloud={enabled:false,initialising:true,member:null,data:{},revision:0,pending:false,blocked:false,inFlight:null,timer:null,
+const cloud={enabled:false,initialising:true,member:null,data:{},baseData:{},revision:0,pending:false,blocked:false,inFlight:null,timer:null,
   banner(message){document.getElementById('cloudStatus').textContent=message;const bar=document.getElementById('cloudSaveBar');if(bar)bar.hidden=message==='All changes saved';},
   download(data,suffix='backup'){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify({app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}));a.href=url;a.download='bdm-'+suffix+'-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},
   get(key,fallback){if(key==='bdm_active_user')return this.member.userId;if(key==='bdm_manager_session')return null;return Object.hasOwn(this.data,key)?structuredClone(this.data[key]):(['bdm_activity','bdm_leads','bdm_snapshots'].includes(key)?[]:fallback);},
   set(key,value){if(['bdm_active_user','bdm_manager_session'].includes(key))return;if(this.blocked)throw Error('Shared saving is paused. Download your pending changes before reloading.');this.data[key]=structuredClone(value);this.pending=true;this.banner('Saving changes…');clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush().catch(()=>{}),200);},
   async request(method='GET',body){const token=await Clerk.session?.getToken();if(!token)throw Error('Your session ended. Download pending changes and sign in again.');const r=await fetch('/api/shared',{method,cache:'no-store',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});let json;try{json=await r.json();}catch{throw Error('The server could not confirm your save. Please retry.');}if(!r.ok){const e=Error(json.error||'Shared data request failed');e.status=r.status;throw e;}return json;},
-  async flush(){if(this.inFlight){await this.inFlight;if(this.pending&&!this.blocked)return this.flush();return;}if(!this.pending||this.blocked)return;const data=structuredClone(this.data);this.pending=false;this.inFlight=(async()=>{try{const saved=await this.request('PUT',{revision:this.revision,data});this.revision=saved.revision;this.banner(this.pending?'Saving changes…':'All changes saved');}catch(e){this.pending=true;if(e.status===409||e.status===403||e.status===401)this.blocked=true;this.banner('Changes NOT saved: '+e.message);throw e;}})();try{await this.inFlight;}finally{this.inFlight=null;}if(this.pending&&!this.blocked)return this.flush();},
+  same(a,b){return JSON.stringify(a)===JSON.stringify(b);},
+  recordKey(v){
+    if(!v||typeof v!=='object'||Array.isArray(v))return null;
+    if(v.id!=null)return 'id:'+String(v.id);
+    if(v.reference)return 'ref:'+String(v.customerId||'')+':'+String(v.reference);
+    if(v.iso)return 'act:'+String(v.iso)+'|'+String(v.customerId||v.customer||'')+'|'+String(v.type||'')+'|'+String(v.audit?.userId||'');
+    if(v.customerId&&v.date&&v.value!=null)return 'tx:'+String(v.customerId)+'|'+String(v.date)+'|'+String(v.value)+'|'+String(v.detail||'');
+    if(v.date&&v.filename)return 'snap:'+String(v.date)+'|'+String(v.filename);
+    return null;
+  },
+  mergeValue(base,local,remote,path='data'){
+    if(this.same(local,base))return structuredClone(remote);
+    if(this.same(remote,base))return structuredClone(local);
+    if(this.same(local,remote))return structuredClone(local);
+    if(Array.isArray(base)&&Array.isArray(local)&&Array.isArray(remote)){
+      const all=[...base,...local,...remote],keys=all.map(v=>this.recordKey(v));
+      if(all.length&&keys.every(Boolean)){
+        const bm=new Map(base.map(v=>[this.recordKey(v),v])),lm=new Map(local.map(v=>[this.recordKey(v),v])),rm=new Map(remote.map(v=>[this.recordKey(v),v]));
+        const order=[...local,...remote].map(v=>this.recordKey(v)),seen=new Set(),out=[];
+        for(const key of order){
+          if(seen.has(key))continue;seen.add(key);
+          const b=bm.get(key),l=lm.get(key),r=rm.get(key);
+          if(l===undefined&&r===undefined)continue;
+          if(l===undefined){if(b!==undefined&&!this.same(r,b))throw Error('Both users changed '+path+' record '+key);continue;}
+          if(r===undefined){if(b!==undefined&&!this.same(l,b))throw Error('Both users changed '+path+' record '+key);continue;}
+          out.push(this.mergeValue(b,l,r,path+'['+key+']'));
+        }
+        return out;
+      }
+      throw Error('Both users changed '+path+' at the same time');
+    }
+    if(base&&local&&remote&&typeof base==='object'&&typeof local==='object'&&typeof remote==='object'&&!Array.isArray(base)&&!Array.isArray(local)&&!Array.isArray(remote)){
+      const out={};for(const key of new Set([...Object.keys(base),...Object.keys(local),...Object.keys(remote)])){
+        const b=base[key],l=local[key],r=remote[key];
+        if(l===undefined&&r===undefined)continue;
+        if(l===undefined){if(b!==undefined&&!this.same(r,b))throw Error('Both users changed '+path+'.'+key);continue;}
+        if(r===undefined){if(b!==undefined&&!this.same(l,b))throw Error('Both users changed '+path+'.'+key);continue;}
+        out[key]=this.mergeValue(b,l,r,path+'.'+key);
+      }return out;
+    }
+    throw Error('Both users changed '+path+' at the same time');
+  },
+  async flush(){if(this.inFlight){await this.inFlight;if(this.pending&&!this.blocked)return this.flush();return;}if(!this.pending||this.blocked)return;const data=structuredClone(this.data);this.pending=false;this.inFlight=(async()=>{try{const saved=await this.request('PUT',{revision:this.revision,data});this.revision=saved.revision;this.baseData=structuredClone(data);this.banner(this.pending?'Saving changes…':'All changes saved');}catch(e){this.pending=true;if(e.status===409){try{const remote=await this.request();const merged=this.mergeValue(this.baseData,data,remote.data);this.baseData=structuredClone(remote.data);this.data=merged;this.revision=remote.revision;this.blocked=false;this.banner('Another user saved first. Merging changes…');return;}catch(conflict){this.blocked=true;this.banner('Save conflict needs review: '+conflict.message);throw conflict;}}if(e.status===403||e.status===401)this.blocked=true;this.banner('Changes NOT saved: '+e.message);throw e;}})();try{await this.inFlight;}finally{this.inFlight=null;}if(this.pending&&!this.blocked)return this.flush();},
   async init(){
     const shell=document.querySelector('.app-shell');shell.hidden=true;
     const gate=document.createElement('section');gate.id='cloudGate';gate.style.cssText='max-width:480px;margin:40px auto;padding:24px';gate.innerHTML='<h1 style="color:#0f4a43">BDM</h1><p id="cloudGateStatus" role="status">Connecting…</p><div id="cloudLogin"></div>';document.body.prepend(gate);
@@ -1116,7 +1158,7 @@ const cloud={enabled:false,initialising:true,member:null,data:{},revision:0,pend
       const script=async(src,attrs={})=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.crossOrigin='anonymous';Object.entries(attrs).forEach(([k,v])=>s.setAttribute(k,v));s.onload=resolve;s.onerror=()=>reject(Error('Secure login could not load. Please refresh.'));document.head.append(s);});
       await script('https://'+host+'/npm/@clerk/ui@1/dist/ui.browser.js');await script('https://'+host+'/npm/@clerk/clerk-js@6/dist/clerk.browser.js',{'data-clerk-publishable-key':config.publishableKey});await Clerk.load({ui:{ClerkUI:window.__internal_ClerkUICtor}});
       if(!Clerk.user){status.textContent='Sign in to your depot.';Clerk.mountSignIn(document.getElementById('cloudLogin'),{forceRedirectUrl:location.origin+'/'});return false;}
-      const initial=await this.request();this.member=initial.member;this.data=initial.data;this.revision=initial.revision;
+      const initial=await this.request();this.member=initial.member;this.data=initial.data;this.baseData=structuredClone(initial.data);this.revision=initial.revision;
       if(!this.revision){
         if(!this.member.manager){status.textContent='Your manager needs to import the depot data first.';return false;}
         status.textContent='Choose the depot data to import. A backup downloads before this device’s data is copied.';
