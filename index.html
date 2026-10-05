@@ -1038,6 +1038,10 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .campaign-kpis div{background:#f5f5f1;border-radius:4px;padding:8px;text-align:center}
 .campaign-kpis b{display:block;font-size:15px}.campaign-kpis small{display:block;color:#646363;font-size:10px;margin-top:2px}
 @media(max-width:430px){.campaign-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* V35 commercial priority engine */
+.priority-reason{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.priority-reason span{font-size:10px;font-weight:850;background:#e6efec;color:#365c54;border-radius:999px;padding:5px 7px}
+.priority-score{font-size:12px;font-weight:900;color:#0f4a43}
 </style>
 </head>
 <body>
@@ -4814,6 +4818,63 @@ renderCampaignManager=function(){
 const progressCampaignPerformance=campaignPerformance;
 campaignPerformance=function(){
   return progressCampaignPerformance().map(c=>({...c,...campaignProgress(c)})).sort((a,b)=>b.wonValue-a.wonValue||b.pct-a.pct||b.leads-a.leads);
+};
+
+
+/* V35: commercially weighted next-best-action engine. */
+function actionPriorityScore(item){
+  let score=0,reasons=[];
+  const today=isoToday(),date=item.date||'',lead=item.leadId?leads.find(l=>l.id===item.leadId):leads.find(l=>String(l.customerId)===String(item.customerId)&&!leadIsClosed(l));
+  if(date){
+    if(date<today){const days=Math.max(1,daysBetween(localDateOnly(date),localDateOnly(today)));score+=70+Math.min(30,days*5);reasons.push(days+'d overdue');}
+    else if(date===today){score+=60;reasons.push('Due today');}
+  }
+  if(lead){
+    const value=n(lead.value),stage=normalizeStage(lead);
+    score+=Math.min(45,value/1000);
+    if(value>=10000)reasons.push('High value');
+    if(stage==='Awaiting decision'){score+=25;reasons.push('Awaiting decision');}
+    else if(stage==='Quoted'){score+=18;reasons.push('Quoted');}
+    else if(stage==='Appointment booked'||stage==='Design in progress'){score+=12;}
+    const rp=leadRequiredPeriod(lead),cp=currentSalesPeriodNumber();
+    if(rp===cp){score+=15;reasons.push('Required this period');}
+  }
+  const raw=currentCustomerModel()?.enriched.find(c=>String(c.customer)===String(item.customerId||item.id));
+  if(raw){
+    if(n(raw.salesMAT)>=20000){score+=15;reasons.push('High-value account');}
+    if(raw.lifecycle==='critical'){score+=24;reasons.push('Closure risk');}
+    else if(raw.lifecycle==='atrisk'||raw.regularGoneQuiet){score+=14;reasons.push('At risk');}
+  }
+  if(top20Set().has(String(item.customerId||item.id))){score+=22;reasons.push('Top 20');}
+  if(item.kind==='survey'||item.workflow==='survey'){score+=16;reasons.push('Survey opportunity');}
+  return {score:Math.round(score),reasons:[...new Set(reasons)].slice(0,4)};
+}
+function rankedActionsForUser(userId=activeUserId){
+  const due=ownDue(userId).map(f=>({...f,customerObj:customerForFollowup(f)}));
+  const dueIds=new Set(due.map(x=>String(x.customerId)));
+  const queue=dailyQueue().filter(c=>!dueIds.has(String(c.id))).map(c=>({customerId:c.id,customer:c.name,reason:c.offer||c.workflowLabel||'Priority customer call',workflow:c.workflow,customerObj:c}));
+  return [...due,...queue].map(x=>({...x,priority:actionPriorityScore(x)})).sort((a,b)=>b.priority.score-a.priority.score||String(a.date||'9999').localeCompare(String(b.date||'9999')));
+}
+nextBestActionForUser=function(){
+  const ranked=rankedActionsForUser(activeUserId);
+  if(!ranked.length)return null;
+  const x=ranked[0];
+  return {customer:x.customerObj,reason:x.reason||x.customerObj.offer||'Priority action',source:x.kind||'queue',priority:x.priority};
+};
+const priorityReasonHome=renderHome;
+renderHome=function(){
+  priorityReasonHome();
+  const nba=nextBestActionForUser(),card=app.querySelector('.next-action-card');
+  if(!nba||!card)return;
+  card.querySelector('p')?.insertAdjacentHTML('afterend','<div class="priority-reason">'+nba.priority.reasons.map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="priority-score">Priority score '+nba.priority.score+'</div>');
+};
+const rankedDailyQueue=dailyQueue;
+dailyQueue=function(){
+  const base=rankedDailyQueue();
+  const map=new Map(base.map(c=>[String(c.id),c]));
+  const ranked=rankedActionsForUser(activeUserId).map(x=>map.get(String(x.customerId))||x.customerObj).filter(Boolean);
+  const seen=new Set();
+  return ranked.filter(c=>{const id=String(c.id);if(seen.has(id))return false;seen.add(id);return true;});
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
