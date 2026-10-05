@@ -1109,6 +1109,12 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .period-switch button{border:0;background:transparent;border-radius:9px;padding:9px 8px;font-size:12px;font-weight:850;color:var(--muted)}
 .period-switch button.active{background:#fff;color:var(--brand);box-shadow:0 2px 8px rgba(0,0,0,.06)}
 
+
+/* V44 tappable home rings */
+.progress-ring-card[data-ring-action]{cursor:pointer;border:0;background:transparent;padding:0;color:inherit;font:inherit;width:100%}
+.progress-ring-card[data-ring-action]:active .progress-ring{transform:scale(.97)}
+.progress-ring{transition:transform .12s ease}
+
 </style>
 </head>
 <body>
@@ -5277,8 +5283,9 @@ renderHome=function(){
     return;
   }
   if(!mine.length||!depot.length)return;
-  section.querySelectorAll(':scope > div:not(.ring-section-head):not(.home-summary-strip), :scope > .sub').forEach(el=>{
-    if(el.classList?.contains('ring-grid')||el.classList?.contains('sub'))el.remove();
+  [...section.children].forEach(el=>{
+    if(el.classList.contains('ring-section-head')||el.classList.contains('home-summary-strip'))return;
+    if(el.classList.contains('ring-grid')||el.classList.contains('sub')||el.textContent?.includes('My period targets')||el.textContent?.includes('Depot period targets'))el.remove();
   });
   const switcher=document.createElement('div');switcher.className='period-switch';
   switcher.innerHTML='<button data-period-view="mine">My targets</button><button data-period-view="depot">Depot targets</button>';
@@ -5292,6 +5299,40 @@ renderHome=function(){
   };
   switcher.querySelectorAll('button').forEach(b=>b.onclick=()=>{homePeriodView=b.dataset.periodView;paint();});
   paint();
+};
+
+
+/* V44: make Home rings direct navigation without adding more controls. */
+function wireHomeRingActions(){
+  const u=activeUser();if(!u)return;
+  const actions={
+    'Calls':()=>renderCalls(),
+    'Conversations':()=>renderStats(),
+    'Leads':()=>renderLeads('all'),
+    'Surveys':()=>renderSurveys(u.id),
+    'My leads':()=>renderLeads('all'),
+    'My pipeline':()=>renderLeads('all'),
+    'My margin':()=>renderLeads('all'),
+    'Sales':()=>renderStats(),
+    'Margin':()=>renderStats(),
+    'Customer contact':()=>renderStats()
+  };
+  document.querySelectorAll('.progress-ring-card').forEach(card=>{
+    const label=card.querySelector('strong')?.textContent;
+    if(!actions[label])return;
+    if(card.tagName!=='BUTTON'){
+      const button=document.createElement('button');
+      button.className=card.className;button.dataset.ringAction=label;
+      button.innerHTML=card.innerHTML;card.replaceWith(button);
+      button.onclick=actions[label];
+    }else card.onclick=actions[label];
+  });
+}
+const tappableHomeRenderer=renderHome;
+renderHome=function(){
+  tappableHomeRenderer();
+  wireHomeRingActions();
+  document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(wireHomeRingActions,0)));
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
