@@ -1103,6 +1103,12 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 @media(min-width:540px){.ring-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:360px){.progress-ring{width:94px;height:94px}.progress-ring-inner b{font-size:21px}}
 
+
+/* V43 period target switch */
+.period-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#eef1ef;border-radius:12px;padding:4px;margin:-4px 0 14px}
+.period-switch button{border:0;background:transparent;border-radius:9px;padding:9px 8px;font-size:12px;font-weight:850;color:var(--muted)}
+.period-switch button.active{background:#fff;color:var(--brand);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+
 </style>
 </head>
 <body>
@@ -5231,6 +5237,61 @@ renderHome=function(){
   if(!u.manager){
     const depotLabel=[...periodSection.querySelectorAll('.sub')].find(x=>x.textContent==='Depot period targets');depotLabel?.remove();
   }
+};
+
+
+/* V43: keep manager Home simple with My / Depot period target switch. */
+let homePeriodView='mine';
+function periodRingOverall(items){
+  if(!items.length)return 0;
+  return Math.round(items.reduce((s,x)=>s+Math.min(100,n(x.actual)/n(x.target)*100),0)/items.length);
+}
+function personalPeriodItems(userId){
+  const x=userPeriodProgress(userId),items=[];
+  if(n(x.target.leads)>0)items.push({label:'My leads',actual:x.leads,target:x.target.leads,format:'number'});
+  if(n(x.target.pipeline)>0)items.push({label:'My pipeline',actual:x.pipeline,target:x.target.pipeline,format:'money'});
+  if(n(x.target.margin)>0)items.push({label:'My margin',actual:x.margin,target:x.target.margin,format:'money'});
+  return items;
+}
+function depotPeriodItems(){
+  const t=currentPeriodTarget(),m=dashboardMetrics(),items=[];
+  if(n(t.sales)>0)items.push({label:'Sales',actual:m.leadValue,target:t.sales,format:'money'});
+  if(n(t.margin)>0)items.push({label:'Margin',actual:m.leadMargin,target:t.margin,format:'money'});
+  if(n(t.leads)>0)items.push({label:'Leads',actual:m.leadCount,target:t.leads,format:'number'});
+  if(n(t.contactPct)>0)items.push({label:'Customer contact',actual:m.contactPct,target:t.contactPct,format:'percent'});
+  return items;
+}
+const switchedTargetHomeRenderer=renderHome;
+renderHome=function(){
+  switchedTargetHomeRenderer();
+  const u=activeUser();if(!u)return;
+  const section=[...app.querySelectorAll('.ring-section')].find(s=>s.querySelector('.ring-section-head h2')?.textContent==='This period');
+  if(!section)return;
+  const mine=personalPeriodItems(u.id),depot=depotPeriodItems();
+  if(!u.manager){
+    if(mine.length){
+      const grid=section.querySelector('.ring-grid');
+      if(grid)grid.innerHTML=mine.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('');
+      const badge=section.querySelector('.ring-section-head .badge');if(badge)badge.textContent=periodRingOverall(mine)+'% overall';
+    }
+    return;
+  }
+  if(!mine.length||!depot.length)return;
+  section.querySelectorAll(':scope > div:not(.ring-section-head):not(.home-summary-strip), :scope > .sub').forEach(el=>{
+    if(el.classList?.contains('ring-grid')||el.classList?.contains('sub'))el.remove();
+  });
+  const switcher=document.createElement('div');switcher.className='period-switch';
+  switcher.innerHTML='<button data-period-view="mine">My targets</button><button data-period-view="depot">Depot targets</button>';
+  section.querySelector('.ring-section-head').insertAdjacentElement('afterend',switcher);
+  const grid=document.createElement('div');grid.className='ring-grid';switcher.insertAdjacentElement('afterend',grid);
+  const paint=()=>{
+    const list=homePeriodView==='depot'?depot:mine;
+    grid.innerHTML=list.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('');
+    section.querySelector('.ring-section-head .badge').textContent=periodRingOverall(list)+'% overall';
+    switcher.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.periodView===homePeriodView));
+  };
+  switcher.querySelectorAll('button').forEach(b=>b.onclick=()=>{homePeriodView=b.dataset.periodView;paint();});
+  paint();
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
