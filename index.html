@@ -951,6 +951,14 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .customer-record-summary .fact{min-width:0}
 @media(max-width:360px){.customer-record-actions{grid-template-columns:1fr}.customer-record-summary{grid-template-columns:1fr 1fr}}
 
+
+/* V23 manager campaigns */
+.campaign-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:13px;margin-top:9px}
+.campaign-card h3{margin:0;font-size:16px}.campaign-card small{display:block;color:#646363;margin-top:4px;line-height:1.35}
+.campaign-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+.campaign-actions button{border:1px solid #d7d4cc;border-radius:4px;background:#fff;padding:10px;font-weight:800}
+.campaign-actions .primary{background:#0f4a43;color:#fff;border-color:#0f4a43}
+
 </style>
 </head>
 <body>
@@ -3443,7 +3451,7 @@ async function validatedReport(kind,file){
     document.getElementById('reportStatus').innerHTML=`<div class="success">Imported ${parsed.length} rows. ${warnings.map(esc).join(' ')}</div>`;
   }catch(e){status.innerHTML=`<div class="import-status error">${esc(e.message)}</div>`;}
 }
-const BACKUP_TYPES={bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
+const BACKUP_TYPES={bdm_campaigns:'array',bdm_call_priorities:'array',bdm_nurture_settings:'object',bdm_period_settings:'object',bdm_period_targets:'object',bdm_standard_contact_messages:'object',bdm_user_targets:'object',bdm_users:'array',bdm_snapshots:'array',bdm_activity:'array',bdm_leads:'array',bdm_followups:'array',bdm_recent_transactions:'array',bdm_daily_user_targets:'object',bdm_ytd_report:'object',bdm_report_metadata:'object',bdm_nurture_progress:'object',bdm_target_history:'object'};
 function makeBackup(){if(cloud.enabled)return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data:structuredClone(cloud.data)};const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('bdm_')&&!['bdm_active_user','bdm_manager_session'].includes(k))data[k]=JSON.parse(localStorage.getItem(k));}return {app:'HANDSOME BDM',version:1,exportedAt:new Date().toISOString(),data};}
 function validateBackup(b){
   if(b?.app!=='HANDSOME BDM'||b.version!==1||!b.data||Array.isArray(b.data))throw new Error('This is not a supported BDM backup.');
@@ -4043,6 +4051,61 @@ renderCustomer=function(msg=''){
     const skip=document.getElementById('skipBtn');if(skip)skip.insertAdjacentElement('beforebegin',btn);else card.append(btn);
     btn.onclick=()=>renderCustomerRecord(c.id,()=>renderCustomer(msg));
   }
+};
+
+
+/* V23: simple manager-created campaigns that become callable queues. */
+let campaigns=storage.get('bdm_campaigns',[]);
+function campaignAudience(campaign){
+  const groups=liveGroups(),changes=databaseChanges();
+  let list=[];
+  if(campaign.audience==='all')list=customerDirectory().filter(c=>c.current).map(c=>databaseChangeCustomer(c,'Campaign: '+campaign.message));
+  if(campaign.audience==='atrisk')list=[...(groups.atrisk||[]),...(groups.critical||[])];
+  if(campaign.audience==='new')list=[...(groups.new||[]),...(groups.newNurture||[])];
+  if(campaign.audience==='top20')list=[...(groups.top20||[])];
+  if(campaign.audience==='spenddown')list=(changes.salesDown||[]).map(c=>databaseChangeCustomer(c,campaign.message));
+  if(campaign.audience==='survey')list=surveyOpportunityLeads().map(l=>customerForFollowup({customerId:l.customerId,customer:l.customer,reason:campaign.message,ownerId:l.ownerId}));
+  const seen=new Set();
+  return list.filter(c=>{const id=String(c.id);if(seen.has(id))return false;seen.add(id);return normalContactDue(id);}).map(c=>({...c,workflow:'campaign:'+campaign.id,workflowLabel:campaign.name.toUpperCase(),offer:campaign.message}));
+}
+function openCampaign(campaign){
+  queueOwnerId=campaign.ownerId||activeUserId;queueKey='campaign';queueIndex=0;queueSnapshot=campaignAudience(campaign);renderCustomer();
+}
+function renderCampaignManager(){
+  if(!activeUser()?.manager)return renderManager();
+  currentView='manager';title.textContent='Campaigns';setNav('manager');
+  const active=campaigns.filter(c=>c.active!==false);
+  app.innerHTML=`<section class="form-card"><div class="row"><div><h2>Campaigns</h2><p class="sub">Create a temporary calling campaign with a defined audience and message.</p></div><button class="filter-btn" id="campaignBack">Manager</button></div>
+  <div class="field"><label>Campaign name</label><input id="campaignName" placeholder="e.g. P8 Appliance Offer"></div>
+  <div class="field"><label>Call message / offer</label><textarea id="campaignMessage" placeholder="What should staff say or offer?"></textarea></div>
+  <div class="field"><label>Audience</label><select id="campaignAudience"><option value="all">All current customers</option><option value="atrisk">At risk / urgent</option><option value="new">New / never traded</option><option value="top20">Top 20 customers</option><option value="spenddown">Spend falling</option><option value="survey">Survey opportunities</option></select></div>
+  <div class="field"><label>Assigned to</label><select id="campaignOwner"><option value="">Any staff member</option>${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select></div>
+  <button class="wide-btn" id="createCampaign">Create campaign</button></section>
+  <section class="form-card"><h2>Active campaigns</h2>${active.map(c=>{const audience=campaignAudience(c);const acts=activity.filter(a=>a.workflow==='campaign:'+c.id);const conversations=acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type)).length;return `<div class="campaign-card"><div class="row"><div><h3>${esc(c.name)}</h3><small>${esc(c.message)}</small></div><span class="badge">${audience.length} to call</span></div><small>${acts.length} calls · ${conversations} conversations · ${esc(users.find(u=>u.id===c.ownerId)?.name||'Any staff')}</small><div class="campaign-actions"><button class="primary" data-campaign-start="${esc(c.id)}">Work campaign</button><button data-campaign-close="${esc(c.id)}">Close campaign</button></div></div>`}).join('')||'<p class="muted">No active campaigns.</p>'}</section>`;
+  document.getElementById('campaignBack').onclick=renderManager;
+  document.getElementById('createCampaign').onclick=()=>{
+    const name=document.getElementById('campaignName').value.trim(),message=document.getElementById('campaignMessage').value.trim();
+    if(!name||!message){alert('Add a campaign name and call message.');return;}
+    requestPin({title:'Create campaign',managerOnly:true,onSuccess:user=>{campaigns.unshift({id:'C'+Date.now(),name,message,audience:document.getElementById('campaignAudience').value,ownerId:document.getElementById('campaignOwner').value,active:true,createdAt:new Date().toISOString(),createdBy:user.id});storage.set('bdm_campaigns',campaigns);renderCampaignManager();}});
+  };
+  document.querySelectorAll('[data-campaign-start]').forEach(b=>b.onclick=()=>{const c=campaigns.find(x=>x.id===b.dataset.campaignStart);if(c)openCampaign(c);});
+  document.querySelectorAll('[data-campaign-close]').forEach(b=>b.onclick=()=>{const c=campaigns.find(x=>x.id===b.dataset.campaignClose);if(!c)return;requestPin({title:'Close campaign',managerOnly:true,onSuccess:()=>{c.active=false;c.closedAt=new Date().toISOString();storage.set('bdm_campaigns',campaigns);renderCampaignManager();}});});
+}
+const campaignCallsRenderer=renderCalls;
+renderCalls=function(){
+  campaignCallsRenderer();
+  const grid=app.querySelector('.call-category-grid');if(!grid)return;
+  campaigns.filter(c=>c.active!==false&&(!c.ownerId||c.ownerId===activeUserId||activeUser()?.manager)).forEach(c=>{
+    const list=campaignAudience(c),button=document.createElement('button');button.className='call-category';
+    button.innerHTML=`<span class="badge blue">Campaign</span><span class="count">${list.length}</span><span class="name">${esc(c.name)}</span><span class="msg">${esc(c.message)}</span>`;
+    button.onclick=()=>openCampaign(c);grid.prepend(button);
+  });
+};
+const campaignManagerRenderer=renderManager;
+renderManager=function(){
+  campaignManagerRenderer();if(!activeUser()?.manager)return;
+  const first=app.querySelector('.form-card');if(!first)return;
+  const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Manage campaigns';btn.onclick=renderCampaignManager;first.append(btn);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
