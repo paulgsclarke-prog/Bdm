@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {memberFromUser,validateData,authoriseWrite} from '../lib/policy.mjs';
+import {memberFromUser,validateData,authoriseWrite,bootstrapManager} from '../lib/policy.mjs';
 const staff={userId:'U2',manager:false},manager={userId:'U1',manager:true};
 test('sign-up alone grants no depot access',()=>assert.throws(()=>memberFromUser({id:'user_1',publicMetadata:{bdmUserId:'U1',bdmRole:'manager'}}),{status:403}));
 test('trusted mapping preserves legacy user identity',()=>assert.deepEqual(memberFromUser({id:'user_1',privateMetadata:{bdmUserId:'U1',bdmRole:'manager'}}),{clerkUserId:'user_1',userId:'U1',manager:true}));
@@ -12,3 +12,6 @@ test('staff target history remains per-user',()=>{authoriseWrite({bdm_target_his
 test('duplicate IDs are rejected',()=>assert.throws(()=>validateData({bdm_leads:[{id:'L1'},{id:'L1'}]}),{status:400}));
 test('manager can migrate reports and settings',()=>authoriseWrite({}, {bdm_users:[{id:'U1',manager:true}],bdm_snapshots:[{customers:[]}]},manager));
 test('new calls may be prepended as in the existing app',()=>authoriseWrite({bdm_activity:[{audit:{userId:'U1'}}]},{bdm_activity:[{audit:{userId:'U2'}},{audit:{userId:'U1'}}]},staff));
+const owner={id:'user_owner',primaryEmailAddressId:'email1',emailAddresses:[{id:'email1',emailAddress:'owner@example.com',verification:{status:'verified'}}],privateMetadata:{}};
+test('only the configured verified primary email can bootstrap the manager',()=>{assert.deepEqual(bootstrapManager(owner,'owner@example.com'),{bdmUserId:'U1',bdmRole:'manager',bdmBootstrapCompleted:true});assert.equal(bootstrapManager(owner,'different@example.com'),null);assert.equal(bootstrapManager(owner,undefined),null);assert.equal(bootstrapManager({...owner,emailAddresses:[{...owner.emailAddresses[0],verification:{status:'unverified'}}]},'owner@example.com'),null);});
+test('bootstrap cannot replace existing or revoked membership',()=>{assert.equal(bootstrapManager({...owner,privateMetadata:{bdmRole:'staff',bdmUserId:'U2'}},'owner@example.com'),null);assert.equal(bootstrapManager({...owner,privateMetadata:{bdmAccessRevoked:true}},'owner@example.com'),null);});

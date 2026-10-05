@@ -43,6 +43,12 @@ BDM_ALLOWED_ORIGINS defaults to https://bdm.semtexgym.com. For an isolated previ
 set its exact origin explicitly and use the preview Clerk keys and separate Neon
 branch. Verify Neon isolation before running schema or migration commands.
 
+BDM_BOOTSTRAP_MANAGER_EMAIL optionally permits one explicitly configured verified
+primary email to link to the legacy manager ID on its first authenticated request.
+The email is server configuration, never a client parameter. Existing/revoked
+metadata is not overwritten. Remove the bootstrap environment variable after the
+owner's mapping is confirmed. BDM_BOOTSTRAP_MANAGER_USER_ID defaults to U1.
+
 GET /api/config returns the publishable key. GET /api/shared requires a Clerk
 Bearer session token. PUT takes `{revision, data}` and returns the new revision.
 403 means access is unlinked/inactive; 409 means the client must reload/reconcile.
