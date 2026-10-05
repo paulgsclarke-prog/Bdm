@@ -1012,6 +1012,9 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .product-gap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .product-gap-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:12px;text-align:left}
 .product-gap-card b{display:block;font-size:24px}.product-gap-card span{display:block;font-weight:850;margin-top:5px}.product-gap-card small{display:block;color:#646363;margin-top:4px}
+/* V31 actual won values */
+.won-actuals{border:1px solid #b7d0ca;border-left:4px solid #0f4a43;border-radius:6px;background:#eef5f3;padding:11px;margin-top:10px}
+.won-actuals .lead-form-grid{margin-top:8px}
 </style>
 </head>
 <body>
@@ -4601,6 +4604,75 @@ renderReports=function(){
       return '';
     });
   });
+};
+
+
+/* V31: capture actual Won value/margin and use them in converted-sales reporting. */
+function wonValueOf(l){return normalizeStage(l)==='Won'&&Number.isFinite(Number(l.wonValue))?n(l.wonValue):n(l.value);}
+function wonMarginOf(l){return normalizeStage(l)==='Won'&&Number.isFinite(Number(l.wonMargin))?n(l.wonMargin):n(l.margin);}
+const wonActualLeadForm=renderSalesLeadForm;
+renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
+  wonActualLeadForm(existing,customer,returnTo);
+  const stage=document.getElementById('salesStage'),notes=document.getElementById('salesNotes');
+  if(!stage||!notes)return;
+  const panel=document.createElement('div');panel.id='wonActuals';panel.className='won-actuals';panel.hidden=true;
+  panel.innerHTML='<b>Actual Won result</b><div class="sub">Use the final sale and margin if they differ from the estimate.</div><div class="lead-form-grid"><div class="field"><label>Actual sales value £</label><input id="wonValue" type="number" min="0" step="0.01" value="'+(existing&&normalizeStage(existing)==='Won'?n(existing.wonValue??existing.value):'')+'"></div><div class="field"><label>Actual margin £</label><input id="wonMargin" type="number" min="0" step="0.01" value="'+(existing&&normalizeStage(existing)==='Won'?n(existing.wonMargin??existing.margin):'')+'"></div></div><div class="field"><label>Actual margin %</label><input id="wonMarginPct" readonly></div>';
+  notes.parentElement.insertAdjacentElement('beforebegin',panel);
+  const refresh=()=>{
+    panel.hidden=stage.value!=='Won';
+    if(stage.value==='Won'){
+      const wv=document.getElementById('wonValue'),wm=document.getElementById('wonMargin');
+      if(!wv.value)wv.value=document.getElementById('salesValue')?.value||'';
+      if(!wm.value)wm.value=document.getElementById('salesMargin')?.value||'';
+      const v=n(wv.value),m=n(wm.value);document.getElementById('wonMarginPct').value=v>0?(m/v*100).toFixed(1)+'%':'';
+    }
+  };
+  stage.addEventListener('change',refresh);
+  document.getElementById('wonValue').addEventListener('input',refresh);
+  document.getElementById('wonMargin').addEventListener('input',refresh);
+  refresh();
+
+  const save=document.getElementById('saveSalesLead'),original=save.onclick;
+  save.onclick=()=>{
+    if(stage.value==='Won'){
+      const v=n(document.getElementById('wonValue').value),m=n(document.getElementById('wonMargin').value);
+      if(v<0||m<0||m>v){alert('Check the actual Won sales value and margin.');return;}
+      existing=existing||null;
+      if(existing){existing._pendingWonValue=v;existing._pendingWonMargin=m;}
+      else window.__bdmPendingWonActual={value:v,margin:m};
+    }
+    original();
+    if(stage.value==='Won'){
+      const wait=setInterval(()=>{
+        const target=existing||leads[0];
+        if(target&&normalizeStage(target)==='Won'){
+          clearInterval(wait);
+          const values=existing?{value:existing._pendingWonValue,margin:existing._pendingWonMargin}:window.__bdmPendingWonActual;
+          target.wonValue=n(values?.value??target.value);target.wonMargin=n(values?.margin??target.margin);target.wonAt=target.closedAt||new Date().toISOString();
+          delete target._pendingWonValue;delete target._pendingWonMargin;delete window.__bdmPendingWonActual;
+          storage.set('bdm_leads',leads);
+        }
+      },50);setTimeout(()=>clearInterval(wait),1500);
+    }
+  };
+};
+const actualPeriodMetrics=periodMetrics;
+periodMetrics=function(periodNo){
+  const m=actualPeriodMetrics(periodNo),range=periodRange(periodNo),start=workingDayKey(range.start),end=workingDayKey(range.end);
+  const won=leads.filter(l=>normalizeStage(l)==='Won'&&recordDateKey(l.wonAt||l.closedAt||l.createdAt)>=start&&recordDateKey(l.wonAt||l.closedAt||l.createdAt)<=end);
+  m.wonValue=won.reduce((s,l)=>s+wonValueOf(l),0);m.wonMargin=won.reduce((s,l)=>s+wonMarginOf(l),0);return m;
+};
+const actualLeaderboard=staffLeaderboard;
+staffLeaderboard=function(){
+  return actualLeaderboard().map(r=>{
+    const won=leads.filter(l=>l.ownerId===r.user.id&&normalizeStage(l)==='Won'&&periodInfo(l.wonAt||l.closedAt||l.createdAt).period===currentSalesPeriodNumber());
+    return {...r,value:won.reduce((s,l)=>s+wonValueOf(l),0),margin:won.reduce((s,l)=>s+wonMarginOf(l),0)};
+  }).sort((a,b)=>b.score-a.score||b.value-a.value||b.conversations-a.conversations);
+};
+const actualSurveyConversion=surveyConversionMetrics;
+surveyConversionMetrics=function(){
+  const m=actualSurveyConversion(),valid=surveys.filter(s=>s.status==='completed').map(s=>({survey:s,lead:leads.find(l=>l.id===s.leadId)})).filter(x=>x.lead&&normalizeStage(x.lead)==='Won');
+  m.wonValue=valid.reduce((sum,x)=>sum+wonValueOf(x.lead),0);return m;
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
