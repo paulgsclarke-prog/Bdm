@@ -2787,7 +2787,7 @@ function managerInterventions(){
     const age=leadAgeDays(l);
     if(l.followUpDate && l.followUpDate<today) out.push({type:'Overdue lead',text:`${l.customer} · ${l.ownerName||'Unassigned'} · ${money(l.value)}`});
     if(age>28) out.push({type:'Lead 29+ days old',text:`${l.customer} · ${l.ownerName||'Unassigned'} · ${normalizeStage(l)}`});
-    if(n(l.value)>=10000 && !l.followUpDate) out.push({type:'High-value lead with no follow-up',text:`${l.customer} · ${money(l.value)} · ${l.ownerName||'Unassigned'}`});
+    if(n(l.value)>=10000 && l.followUpDate && l.followUpDate<today) out.push({type:'High-value overdue lead',text:`${l.customer} · ${money(l.value)} · ${l.ownerName||'Unassigned'} · due ${l.followUpDate}`});
   });
   const m=dashboardMetrics();
   users.filter(u=>u.active!==false).forEach(u=>{
@@ -4976,8 +4976,8 @@ function pipelineRiskItems(){
     let score=0,reasons=[];const age=leadAgeDays(l),value=n(l.value),stage=normalizeStage(l);
     if(age>28){score+=30+Math.min(20,Math.floor((age-28)/7)*5);reasons.push(age+' days old');}
     if(value>=10000){score+=Math.min(35,value/1000);reasons.push('High value');}
-    if(!l.followUpDate){score+=35;reasons.push('No next action');}
-    else if(l.followUpDate<today){score+=45;reasons.push('Overdue '+Math.max(1,daysBetween(localDateOnly(l.followUpDate),localDateOnly(today)))+'d');}
+    if(l.followUpDate<today){const overdueDays=Math.max(1,daysBetween(localDateOnly(l.followUpDate),localDateOnly(today)));score+=45+Math.min(30,overdueDays*3);reasons.push('Follow-up '+overdueDays+'d overdue');}
+    else if(l.followUpDate===today){score+=20;reasons.push('Follow-up due today');}
     if(stage==='Awaiting decision'){score+=18;reasons.push('Awaiting decision');}
     if(stage==='Quoted'){score+=12;reasons.push('Quoted');}
     const rp=leadRequiredPeriod(l),cp=currentSalesPeriodNumber();
