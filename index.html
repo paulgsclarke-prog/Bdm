@@ -1047,6 +1047,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .product-mix-item{border:1px solid #e0ddd6;border-radius:5px;background:#fff;padding:10px}
 .product-mix-item small{display:block;color:#646363}.product-mix-item b{display:block;margin-top:3px}
 .product-mix-item.gap{border-left:4px solid #b78625}
+/* V37 import diagnostics + pipeline risk */
+.import-checks{display:grid;gap:7px;margin-top:10px}
+.import-check{border:1px solid #ddd9d1;border-radius:5px;background:#fff;padding:9px 10px}
+.import-check b{display:block}.import-check small{display:block;color:#646363;margin-top:3px}
+.risk-card{border:1px solid #e0c6c6;border-left:4px solid #a13a3f;border-radius:6px;background:#fff;padding:11px;margin-top:8px}
+.risk-card b{display:block}.risk-card small{display:block;color:#646363;margin-top:4px}
+.risk-score{font-size:12px;font-weight:900;color:#9a3338}
 </style>
 </head>
 <body>
@@ -4906,6 +4913,79 @@ renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCusto
   section.innerHTML='<div class="row"><h2>Product mix</h2><span class="badge">MAT</span></div><div class="product-mix-grid">'+mix.map(([label,value,type])=>'<div class="product-mix-item '+(value===0?'gap':'')+'"><small>'+esc(label)+'</small><b>'+(type==='money'?money(value):Number(value).toLocaleString('en-GB'))+'</b>'+(value===0?'<small>Cross-sell opportunity</small>':'')+'</div>').join('')+'</div>';
   const history=[...app.querySelectorAll('.customer-record-section')].find(x=>x.querySelector('h2')?.textContent==='Account change history');
   if(history)history.insertAdjacentElement('beforebegin',section);else app.append(section);
+};
+
+
+/* V37: stronger customer-report validation + actionable pipeline risk. */
+function customerImportDiagnostics(rows){
+  const dataRows=rows.slice(4).filter(row=>(row||[]).some(v=>v!=null&&String(v).trim())&&!/^(total|grand total)$/i.test(String(row?.[0]??'').trim()));
+  const shortRows=dataRows.filter(r=>(r||[]).length<38).length;
+  const numericIndexes=[7,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36];
+  let invalidNumeric=0;
+  dataRows.forEach(row=>numericIndexes.forEach(i=>{const v=row[i];if(v==null||String(v).trim()==='')return;const cleaned=String(v).replace(/[£%,\s()]/g,'');if(cleaned&&!Number.isFinite(Number(cleaned)))invalidNumeric++;}));
+  const suspiciousIds=dataRows.filter(r=>!String(r?.[0]??'').trim()||String(r?.[0]??'').length>40).length;
+  const blankNames=dataRows.filter(r=>!String(r?.[1]??'').trim()).length;
+  return {rows:dataRows.length,shortRows,invalidNumeric,suspiciousIds,blankNames,columnsExpected:38};
+}
+const diagnosticValidatedCustomerRows=validatedCustomerRows;
+validatedCustomerRows=function(rows){
+  const d=customerImportDiagnostics(rows);
+  if(d.rows&&d.shortRows/d.rows>0.1)throw new Error('Customer report structure looks wrong: '+d.shortRows+' of '+d.rows+' data rows have fewer than 38 columns.');
+  if(d.invalidNumeric>Math.max(10,Math.floor(d.rows*0.2)))throw new Error('Customer report has too many non-numeric values in expected numeric columns. Check the export format before importing.');
+  return diagnosticValidatedCustomerRows(rows);
+};
+const diagnosticValidatedReport=validatedReport;
+validatedReport=async function(kind,file){
+  let diagnostics=null;
+  if(kind==='customers'&&file&&typeof XLSX!=='undefined'){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:null,raw:true});
+      diagnostics=customerImportDiagnostics(rows);
+      file=new File([await file.arrayBuffer()],file.name,{type:file.type,lastModified:file.lastModified});
+    }catch(e){}
+  }
+  await diagnosticValidatedReport(kind,file);
+  if(kind==='customers'&&diagnostics){
+    const status=document.getElementById('reportStatus')||document.getElementById('importStatus');
+    if(status&&!status.querySelector('.import-status.error')){
+      const warnings=[];
+      if(diagnostics.shortRows)warnings.push(diagnostics.shortRows+' rows had fewer than 38 populated columns.');
+      if(diagnostics.invalidNumeric)warnings.push(diagnostics.invalidNumeric+' cells in expected numeric columns were not numeric.');
+      status.insertAdjacentHTML('beforeend','<div class="import-checks"><div class="import-check"><b>Customer report structure checked</b><small>'+diagnostics.rows+' data rows · expected 38-column layout'+(warnings.length?' · '+esc(warnings.join(' ')):' · no structural warnings')+'</small></div></div>');
+    }
+  }
+};
+
+function pipelineRiskItems(){
+  const today=isoToday();
+  return leads.filter(l=>!leadIsClosed(l)).map(l=>{
+    let score=0,reasons=[];const age=leadAgeDays(l),value=n(l.value),stage=normalizeStage(l);
+    if(age>28){score+=30+Math.min(20,Math.floor((age-28)/7)*5);reasons.push(age+' days old');}
+    if(value>=10000){score+=Math.min(35,value/1000);reasons.push('High value');}
+    if(!l.followUpDate){score+=35;reasons.push('No next action');}
+    else if(l.followUpDate<today){score+=45;reasons.push('Overdue '+Math.max(1,daysBetween(localDateOnly(l.followUpDate),localDateOnly(today)))+'d');}
+    if(stage==='Awaiting decision'){score+=18;reasons.push('Awaiting decision');}
+    if(stage==='Quoted'){score+=12;reasons.push('Quoted');}
+    const rp=leadRequiredPeriod(l),cp=currentSalesPeriodNumber();
+    if(rp&&rp<cp){score+=25;reasons.push('Required period passed');}
+    return {lead:l,score:Math.round(score),reasons};
+  }).filter(x=>x.score>=35).sort((a,b)=>b.score-a.score||n(b.lead.value)-n(a.lead.value));
+}
+function renderPipelineRisk(){
+  if(!activeUser()?.manager)return renderManager();
+  currentView='manager';title.textContent='Pipeline risk';setNav('manager');
+  const items=pipelineRiskItems();
+  app.innerHTML='<section class="form-card"><div class="row"><div><h2>Pipeline risk</h2><p class="sub">Open opportunities most likely to need manager attention.</p></div><button class="filter-btn" id="riskBack">Manager</button></div></section><section class="form-card">'+(items.map(x=>'<div class="risk-card"><div class="row"><div><b>'+esc(x.lead.customer)+'</b><small>'+money(x.lead.value)+' · '+esc(normalizeStage(x.lead))+' · '+esc(x.lead.ownerName||'Unassigned')+'</small></div><span class="risk-score">Risk '+x.score+'</span></div><small>'+esc(x.reasons.join(' · '))+'</small><div class="manager-action-row"><button class="primary" data-risk-lead="'+esc(x.lead.id)+'">Open lead</button><button data-risk-call="'+esc(x.lead.id)+'">Call customer</button></div></div>').join('')||'<p class="muted">No high-risk open opportunities.</p>')+'</section>';
+  document.getElementById('riskBack').onclick=renderManager;
+  document.querySelectorAll('[data-risk-lead]').forEach(b=>b.onclick=()=>renderSalesLeadForm(leads.find(l=>l.id===b.dataset.riskLead),null,renderPipelineRisk));
+  document.querySelectorAll('[data-risk-call]').forEach(b=>b.onclick=()=>{const l=leads.find(x=>x.id===b.dataset.riskCall);if(l)openFollowupCall({customerId:l.customerId,customer:l.customer,reason:l.nextActionReason||l.details||'Pipeline risk follow-up',ownerId:l.ownerId});});
+}
+const riskManagerRenderer=renderManager;
+renderManager=function(){
+  riskManagerRenderer();if(!activeUser()?.manager)return;
+  const items=pipelineRiskItems(),first=app.querySelector('.form-card');
+  if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Pipeline risk · '+items.length;btn.onclick=renderPipelineRisk;first.append(btn);}
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
