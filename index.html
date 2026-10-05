@@ -980,6 +980,11 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .close-summary{border:1px solid #d7d4cc;border-radius:5px;background:#f7f7f4;padding:11px;margin-top:10px}
 .close-summary b{display:block}.close-summary small{display:block;color:#646363;margin-top:3px}
 
+
+/* V26 runtime resilience */
+.app-error{border:1px solid #e0b7b7;border-left:5px solid #b31f28;border-radius:6px;background:#fff4f4;padding:14px;margin:12px 0}
+.app-error b{display:block}.app-error small{display:block;color:#6b4d4d;margin-top:4px}
+
 </style>
 </head>
 <body>
@@ -4286,6 +4291,28 @@ renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
   };
   stage.addEventListener('change',syncClose);syncClose();
 };
+
+
+/* V26: recover cleanly from a render error instead of leaving a broken screen. */
+const baseGo=go;
+go=function(view){
+  try{
+    baseGo(view);
+    const nav=document.getElementById('bottomNav');
+    if(nav){nav.hidden=false;nav.style.display='grid';}
+  }catch(error){
+    console.error('BDM navigation error',view,error);
+    currentView='error';title.textContent='BDM';
+    app.innerHTML=`<section class="app-error"><b>This screen could not load correctly.</b><small>${esc(error?.message||'Unexpected screen error')}</small><button class="wide-btn" id="recoverHome">Return to Today</button></section>`;
+    document.getElementById('recoverHome').onclick=()=>{try{renderHome();}catch(e){location.reload();}};
+  }
+};
+window.addEventListener('error',event=>{
+  console.error('BDM runtime error',event.error||event.message);
+});
+window.addEventListener('unhandledrejection',event=>{
+  console.error('BDM promise error',event.reason);
+});
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
