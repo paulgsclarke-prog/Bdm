@@ -1115,6 +1115,12 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .progress-ring-card[data-ring-action]:active .progress-ring{transform:scale(.97)}
 .progress-ring{transition:transform .12s ease}
 
+
+/* V45 period pace */
+.ring-pace{display:inline-block;margin-top:5px;font-size:10px;font-weight:850;border-radius:999px;padding:4px 6px;background:#eef1ef;color:#596762}
+.ring-pace.ahead{background:#e4f3e7;color:#397246}
+.ring-pace.behind{background:#faece8;color:#91463e}
+
 </style>
 </head>
 <body>
@@ -5333,6 +5339,30 @@ renderHome=function(){
   tappableHomeRenderer();
   wireHomeRingActions();
   document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(wireHomeRingActions,0)));
+};
+
+
+/* V45: show whether period target progress is ahead of or behind elapsed-period pace. */
+function wirePeriodPace(){
+  const section=[...app.querySelectorAll('.ring-section')].find(s=>s.querySelector('.ring-section-head h2')?.textContent==='This period');
+  if(!section)return;
+  const p=periodInfo(new Date()),elapsed=Math.min(100,(((p.week-1)*7+p.day)/28)*100);
+  section.querySelectorAll('.progress-ring-card').forEach(card=>{
+    card.querySelector('.ring-pace')?.remove();
+    const shown=parseFloat(card.querySelector('.progress-ring-inner b')?.textContent)||0;
+    const diff=shown-elapsed,label=document.createElement('span');label.className='ring-pace';
+    if(shown>=100){label.classList.add('ahead');label.textContent='Target achieved';}
+    else if(diff>=3){label.classList.add('ahead');label.textContent=Math.round(diff)+'% ahead of pace';}
+    else if(diff<=-3){label.classList.add('behind');label.textContent=Math.round(Math.abs(diff))+'% behind pace';}
+    else label.textContent='On pace';
+    card.append(label);
+  });
+}
+const pacedHomeRenderer=renderHome;
+renderHome=function(){
+  pacedHomeRenderer();
+  wirePeriodPace();
+  document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{wireHomeRingActions();wirePeriodPace();},0)));
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
