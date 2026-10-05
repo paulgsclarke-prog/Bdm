@@ -1061,6 +1061,12 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .sales-cycle-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .sales-cycle-strip div{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:11px;text-align:center}
 .sales-cycle-strip b{display:block;font-size:20px}.sales-cycle-strip small{display:block;color:#646363;margin-top:4px}
+/* V39 manager work allocation */
+.allocation-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.allocation-summary div{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:10px;text-align:center}
+.allocation-summary b{display:block;font-size:20px}.allocation-summary small{display:block;color:#646363;margin-top:3px}
+.allocation-item{border:1px solid #ddd9d1;border-radius:6px;background:#fff;padding:11px;margin-top:8px}
+.allocation-item select{width:100%;margin-top:8px;border:1px solid #d7d4cc;border-radius:5px;padding:10px;background:#fff}
 </style>
 </head>
 <body>
@@ -5031,6 +5037,46 @@ renderManager=function(){
   section.innerHTML='<h2>Pipeline ageing</h2><div class="ageing-value-grid">'+Object.entries(m.ageing).map(([band,v])=>'<div class="ageing-value-card"><b>'+money(v.value)+'</b><small>'+band+' · '+v.count+' leads</small></div>').join('')+'</div><div class="settings-card" style="margin-top:9px"><b>'+money(m.overdueValue)+' overdue</b><div class="sub">'+m.overdueCount+' leads need action · avg Won cycle '+m.avgWon.toFixed(1)+' days</div></div>';
   const forecast=[...app.querySelectorAll('.form-card')].find(x=>x.querySelector('h2')?.textContent==='Sales forecast');
   if(forecast)forecast.insertAdjacentElement('afterend',section);else app.prepend(section);
+};
+
+
+/* V39: manager bulk work allocation for leads, follow-ups and surveys. */
+function assignmentWork(){
+  return {
+    leads:leads.filter(l=>!leadIsClosed(l)),
+    followups:followups.filter(f=>!f.completedAt),
+    surveys:surveys.filter(s=>s.status==='booked')
+  };
+}
+function ownerSelect(value,type,id){
+  return '<select data-assign-type="'+esc(type)+'" data-assign-id="'+esc(id)+'">'+users.filter(u=>u.active!==false).map(u=>'<option value="'+esc(u.id)+'" '+(u.id===value?'selected':'')+'>'+esc(u.name)+'</option>').join('')+'</select>';
+}
+function renderWorkAssignment(){
+  if(!activeUser()?.manager)return renderManager();
+  currentView='manager';title.textContent='Work allocation';setNav('manager');
+  const w=assignmentWork(),today=isoToday();
+  const leadOverdue=w.leads.filter(l=>l.followUpDate&&l.followUpDate<today).length;
+  const followOverdue=w.followups.filter(f=>f.date&&f.date<today).length;
+  const surveyOverdue=w.surveys.filter(s=>s.date&&s.date<today).length;
+  app.innerHTML='<section class="form-card"><div class="row"><div><h2>Work allocation</h2><p class="sub">Move unfinished work between active staff.</p></div><button class="filter-btn" id="allocationBack">Manager</button></div><div class="allocation-summary"><div><b>'+w.leads.length+'</b><small>Open leads</small></div><div><b>'+w.followups.length+'</b><small>Callbacks</small></div><div><b>'+w.surveys.length+'</b><small>Surveys</small></div></div><p class="sub">'+leadOverdue+' overdue leads · '+followOverdue+' overdue callbacks · '+surveyOverdue+' overdue surveys</p></section>'+
+  '<section class="form-card"><h2>Open leads</h2>'+(w.leads.sort((a,b)=>String(a.followUpDate||'9999').localeCompare(String(b.followUpDate||'9999'))).map(l=>'<div class="allocation-item"><div class="row"><div><b>'+esc(l.customer)+'</b><small>'+money(l.value)+' · '+esc(normalizeStage(l))+' · '+esc(l.followUpDate||'No date')+'</small></div>'+(l.followUpDate<today?'<span class="badge overdue">Overdue</span>':'')+'</div>'+ownerSelect(l.ownerId,'lead',l.id)+'</div>').join('')||'<p class="muted">No open leads.</p>')+'</section>'+
+  '<section class="form-card"><h2>Callbacks</h2>'+(w.followups.sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999'))).map(f=>'<div class="allocation-item"><div class="row"><div><b>'+esc(f.customer||f.customerId)+'</b><small>'+esc(f.date||'No date')+' · '+esc(f.reason||'Follow-up')+'</small></div>'+(f.date<today?'<span class="badge overdue">Overdue</span>':'')+'</div>'+ownerSelect(f.ownerId,'followup',f.id)+'</div>').join('')||'<p class="muted">No callbacks.</p>')+'</section>'+
+  '<section class="form-card"><h2>Surveys</h2>'+(w.surveys.sort((a,b)=>String(a.date||'9999').localeCompare(String(b.date||'9999'))).map(s=>'<div class="allocation-item"><div class="row"><div><b>'+esc(s.customer)+'</b><small>'+esc(s.date||'No date')+'</small></div>'+(s.date<today?'<span class="badge overdue">Overdue</span>':'')+'</div>'+ownerSelect(s.ownerId,'survey',s.id)+'</div>').join('')||'<p class="muted">No booked surveys.</p>')+'</section>';
+  document.getElementById('allocationBack').onclick=renderManager;
+  document.querySelectorAll('[data-assign-type]').forEach(sel=>sel.onchange=()=>{
+    const type=sel.dataset.assignType,id=sel.dataset.assignId,newOwner=sel.value,user=users.find(u=>u.id===newOwner);if(!user)return;
+    requestPin({title:'Reassign work',managerOnly:true,onSuccess:manager=>{
+      if(type==='lead'){const l=leads.find(x=>x.id===id);if(l){const old=l.ownerName||'Unassigned';l.ownerId=user.id;l.ownerName=user.name;l.events=[...(l.events||[]),{date:new Date().toISOString(),label:'Lead reassigned',text:old+' → '+user.name,by:manager.name}];storage.set('bdm_leads',leads);}}
+      if(type==='followup'){const f=followups.find(x=>x.id===id);if(f){f.ownerId=user.id;f.updatedAt=new Date().toISOString();f.updatedBy=manager.id;storage.set('bdm_followups',followups);}}
+      if(type==='survey'){const s=surveys.find(x=>x.id===id);if(s){s.ownerId=user.id;s.updatedAt=new Date().toISOString();s.updatedBy=manager.id;storage.set('bdm_surveys',surveys);const l=leads.find(x=>x.id===s.leadId);if(l&&!leadIsClosed(l)){l.ownerId=user.id;l.ownerName=user.name;storage.set('bdm_leads',leads);}}}
+      renderWorkAssignment();
+    }});
+  });
+}
+const allocationManagerRenderer=renderManager;
+renderManager=function(){
+  allocationManagerRenderer();if(!activeUser()?.manager)return;
+  const first=app.querySelector('.form-card');if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Work allocation';btn.onclick=renderWorkAssignment;first.append(btn);}
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
