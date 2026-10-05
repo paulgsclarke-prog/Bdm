@@ -4852,7 +4852,7 @@ function actionPriorityScore(item){
 function rankedActionsForUser(userId=activeUserId){
   const due=ownDue(userId).map(f=>({...f,customerObj:customerForFollowup(f)}));
   const dueIds=new Set(due.map(x=>String(x.customerId)));
-  const queue=dailyQueue().filter(c=>!dueIds.has(String(c.id))).map(c=>({customerId:c.id,customer:c.name,reason:c.offer||c.workflowLabel||'Priority customer call',workflow:c.workflow,customerObj:c}));
+  const queue=rankedDailyQueue().filter(c=>!dueIds.has(String(c.id))).map(c=>({customerId:c.id,customer:c.name,reason:c.offer||c.workflowLabel||'Priority customer call',workflow:c.workflow,customerObj:c}));
   return [...due,...queue].map(x=>({...x,priority:actionPriorityScore(x)})).sort((a,b)=>b.priority.score-a.priority.score||String(a.date||'9999').localeCompare(String(b.date||'9999')));
 }
 nextBestActionForUser=function(){
