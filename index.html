@@ -1024,6 +1024,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .forecast-card b{display:block;font-size:22px}.forecast-card small{display:block;color:#646363;margin-top:4px}
 .forecast-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #e4e2dc}
 .forecast-row:last-child{border-bottom:0}
+/* V33 customer snapshot history */
+.snapshot-history{display:grid;gap:8px;margin-top:8px}
+.snapshot-history-item{border:1px solid #e0ddd6;border-radius:5px;background:#fff;padding:11px}
+.snapshot-history-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
+.snapshot-history-grid div{min-width:0}.snapshot-history-grid small{display:block;color:#646363}.snapshot-history-grid b{display:block;font-size:13px;margin-top:2px}
+.movement-up{color:#246243}.movement-down{color:#a02d34}
+@media(max-width:430px){.snapshot-history-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -4755,6 +4762,21 @@ renderManager=function(){
   section.innerHTML='<h2>Sales forecast</h2><p class="sub">Stage-weighted view of current-period open pipeline.</p><div class="forecast-grid"><div class="forecast-card"><b>'+money(f.periodValue)+'</b><small>Pipeline</small></div><div class="forecast-card"><b>'+money(f.periodWeighted)+'</b><small>Weighted sales</small></div><div class="forecast-card"><b>'+money(f.periodMargin)+'</b><small>Weighted margin</small></div><div class="forecast-card"><b>'+f.period.length+'</b><small>Open opportunities</small></div></div>';
   const board=[...app.querySelectorAll('.form-card')].find(x=>x.querySelector('h2')?.textContent==='Team leaderboard');
   if(board)board.insertAdjacentElement('afterend',section);else app.prepend(section);
+};
+
+
+/* V33: show account movement across saved customer snapshots. */
+function customerSnapshotHistory(customerId){
+  return snapshots.map(s=>({snapshot:s,customer:(s.customers||[]).find(c=>String(c.customer||'').trim()===String(customerId))})).filter(x=>x.customer).sort((a,b)=>String(b.snapshot.date).localeCompare(String(a.snapshot.date)));
+}
+const historyCustomerRecord=renderCustomerRecord;
+renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCustomerQuery)){
+  historyCustomerRecord(customerId,back);
+  const history=customerSnapshotHistory(customerId);if(!history.length)return;
+  const section=document.createElement('section');section.className='form-card customer-record-section';
+  section.innerHTML='<div class="row"><h2>Account change history</h2><span class="badge">'+history.length+' snapshots</span></div><div class="snapshot-history">'+history.slice(0,8).map((x,i)=>{const c=x.customer,older=history[i+1]?.customer,salesMove=older?n(c.salesMAT)-n(older.salesMAT):null,txMove=older?n(c.transactionsMAT)-n(older.transactionsMAT):null;return '<div class="snapshot-history-item"><div class="row"><b>'+esc(x.snapshot.date)+'</b>'+(salesMove!=null?'<span class="'+(salesMove>0?'movement-up':salesMove<0?'movement-down':'')+'">'+(salesMove>0?'+':'')+money(salesMove)+'</span>':'')+'</div><div class="snapshot-history-grid"><div><small>MAT sales</small><b>'+money(c.salesMAT)+'</b></div><div><small>Transactions</small><b>'+n(c.transactionsMAT)+(txMove!=null?' ('+(txMove>0?'+':'')+txMove+')':'')+'</b></div><div><small>Recency</small><b>'+n(c.recency)+'</b></div><div><small>Loyalty</small><b>'+n(c.loyalty)+'%</b></div></div></div>';}).join('')+'</div>';
+  const transactions=[...app.querySelectorAll('.customer-record-section')].find(x=>x.querySelector('h2')?.textContent==='Recent transactions');
+  if(transactions)transactions.insertAdjacentElement('afterend',section);else app.append(section);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
