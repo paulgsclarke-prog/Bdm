@@ -929,6 +929,14 @@ body.manager-session #bottomNav .manager-only{display:block!important}
   .bottom-nav .nav-btn small{font-size:10px}
 }
 
+
+/* V21 lead search + ownership filter */
+.lead-search-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:0 0 12px}
+.lead-search-panel input,.lead-search-panel select{min-height:44px;border:1px solid #afaeaa;border-radius:4px;background:#fff;color:#20201e;padding:10px 11px;font:inherit}
+.lead-search-panel input{width:100%;min-width:0}
+.lead-search-empty{background:#fff;border:1px solid #d7d4cc;border-radius:5px;padding:16px;color:#646363}
+@media(max-width:430px){.lead-search-panel{grid-template-columns:1fr}.lead-search-panel select{width:100%}}
+
 </style>
 </head>
 <body>
@@ -3906,6 +3914,39 @@ const polishedSalesLeadForm=renderSalesLeadForm;
 renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
   polishedSalesLeadForm(existing,customer,returnTo);
   window.scrollTo({top:0,left:0,behavior:'auto'});
+};
+
+
+/* V21: scalable lead search and owner filtering. */
+function applyLeadListFilters(){
+  const query=(document.getElementById('leadSearch')?.value||'').trim().toLowerCase();
+  const owner=document.getElementById('leadOwnerFilter')?.value||'all';
+  let visible=0;
+  document.querySelectorAll('[data-lead-card]').forEach(card=>{
+    const lead=leads.find(l=>String(l.id)===String(card.dataset.leadCard));
+    if(!lead)return;
+    const text=[lead.customer,lead.customerId,lead.quoteNo,lead.details,lead.category,lead.ownerName,lead.nextActionReason].join(' ').toLowerCase();
+    const focus=activeLeadFocus==='all'||activeLeadFocus===card.dataset.leadBucket||(activeLeadFocus==='due'&&['today','overdue'].includes(card.dataset.leadBucket));
+    const matches=(!query||text.includes(query))&&(owner==='all'||String(lead.ownerId)===owner)&&focus;
+    card.hidden=!matches;if(matches)visible++;
+  });
+  const empty=document.getElementById('leadSearchEmpty');if(empty)empty.hidden=visible>0;
+}
+const searchableLeadRenderer=renderLeads;
+renderLeads=function(mode='all'){
+  searchableLeadRenderer(mode);
+  if(mode!=='all')return;
+  const focusBar=app.querySelector('.lead-focus-bar');
+  if(!focusBar)return;
+  const panel=document.createElement('div');panel.className='lead-search-panel';
+  const manager=Boolean(activeUser()?.manager&&(!cloud.enabled||cloud.member?.manager));
+  panel.innerHTML=`<input id="leadSearch" type="search" autocomplete="off" placeholder="Search customer, account, quote or lead">${manager?`<select id="leadOwnerFilter"><option value="all">All owners</option>${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('')}</select>`:''}`;
+  focusBar.insertAdjacentElement('afterend',panel);
+  const empty=document.createElement('div');empty.id='leadSearchEmpty';empty.className='lead-search-empty';empty.hidden=true;empty.textContent='No leads match this search and filter.';panel.insertAdjacentElement('afterend',empty);
+  document.getElementById('leadSearch').oninput=applyLeadListFilters;
+  if(manager)document.getElementById('leadOwnerFilter').onchange=applyLeadListFilters;
+  document.querySelectorAll('[data-lead-focus]').forEach(b=>b.addEventListener('click',()=>setTimeout(applyLeadListFilters,0)));
+  applyLeadListFilters();
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
