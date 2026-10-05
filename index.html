@@ -1054,6 +1054,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .risk-card{border:1px solid #e0c6c6;border-left:4px solid #a13a3f;border-radius:6px;background:#fff;padding:11px;margin-top:8px}
 .risk-card b{display:block}.risk-card small{display:block;color:#646363;margin-top:4px}
 .risk-score{font-size:12px;font-weight:900;color:#9a3338}
+/* V38 pipeline ageing value + sales cycle */
+.ageing-value-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ageing-value-card{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:11px}
+.ageing-value-card b{display:block;font-size:20px}.ageing-value-card small{display:block;color:#646363;margin-top:4px}
+.sales-cycle-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sales-cycle-strip div{border:1px solid #d7d4cc;border-radius:6px;background:#fff;padding:11px;text-align:center}
+.sales-cycle-strip b{display:block;font-size:20px}.sales-cycle-strip small{display:block;color:#646363;margin-top:4px}
 </style>
 </head>
 <body>
@@ -4986,6 +4993,44 @@ renderManager=function(){
   riskManagerRenderer();if(!activeUser()?.manager)return;
   const items=pipelineRiskItems(),first=app.querySelector('.form-card');
   if(first){const btn=document.createElement('button');btn.className='wide-btn secondary';btn.textContent='Pipeline risk · '+items.length;btn.onclick=renderPipelineRisk;first.append(btn);}
+};
+
+
+/* V38: show monetary pipeline ageing and sales-cycle speed. */
+function salesCycleMetrics(){
+  const won=leads.filter(l=>normalizeStage(l)==='Won'&&l.createdAt);
+  const lost=leads.filter(l=>normalizeStage(l)==='Lost'&&l.createdAt);
+  const daysToClose=l=>{
+    const end=new Date(l.wonAt||l.closedAt||l.updatedAudit?.iso||Date.now()).getTime(),start=new Date(l.createdAt).getTime();
+    return Number.isFinite(end)&&Number.isFinite(start)?Math.max(0,(end-start)/86400000):0;
+  };
+  const avg=list=>list.length?list.reduce((s,l)=>s+daysToClose(l),0)/list.length:0;
+  const open=leads.filter(l=>!leadIsClosed(l)),today=isoToday();
+  const ageing={};
+  ['0–7 days','8–14 days','15–28 days','29+ days'].forEach(k=>ageing[k]={count:0,value:0,margin:0});
+  open.forEach(l=>{const k=leadAgeBucket(l);ageing[k].count++;ageing[k].value+=n(l.value);ageing[k].margin+=n(l.margin);});
+  const overdue=open.filter(l=>l.followUpDate&&l.followUpDate<today);
+  return {
+    avgWon:avg(won),avgLost:avg(lost),wonCount:won.length,lostCount:lost.length,ageing,
+    overdueValue:overdue.reduce((s,l)=>s+n(l.value),0),
+    overdueMargin:overdue.reduce((s,l)=>s+n(l.margin),0),
+    overdueCount:overdue.length
+  };
+}
+const cycleStatsRenderer=renderStats;
+renderStats=function(){
+  cycleStatsRenderer();
+  const m=salesCycleMetrics(),section=document.createElement('section');section.className='stat-section';
+  section.innerHTML='<div class="stat-section-title">Pipeline ageing value</div><div class="ageing-value-grid">'+Object.entries(m.ageing).map(([band,v])=>'<div class="ageing-value-card"><b>'+money(v.value)+'</b><small>'+band+' · '+v.count+' leads · '+money(v.margin)+' margin</small></div>').join('')+'</div><div class="settings-card" style="margin-top:9px"><b>'+money(m.overdueValue)+' overdue pipeline</b><div class="sub">'+m.overdueCount+' leads · '+money(m.overdueMargin)+' margin</div></div><div class="stat-section-title" style="margin-top:14px">Sales cycle</div><div class="sales-cycle-strip"><div><b>'+m.avgWon.toFixed(1)+'d</b><small>Average to Won</small></div><div><b>'+m.avgLost.toFixed(1)+'d</b><small>Average to Lost</small></div><div><b>'+m.wonCount+'/'+m.lostCount+'</b><small>Won / Lost</small></div></div>';
+  app.append(section);
+};
+const cycleManagerRenderer=renderManager;
+renderManager=function(){
+  cycleManagerRenderer();if(!activeUser()?.manager)return;
+  const m=salesCycleMetrics(),section=document.createElement('section');section.className='form-card';
+  section.innerHTML='<h2>Pipeline ageing</h2><div class="ageing-value-grid">'+Object.entries(m.ageing).map(([band,v])=>'<div class="ageing-value-card"><b>'+money(v.value)+'</b><small>'+band+' · '+v.count+' leads</small></div>').join('')+'</div><div class="settings-card" style="margin-top:9px"><b>'+money(m.overdueValue)+' overdue</b><div class="sub">'+m.overdueCount+' leads need action · avg Won cycle '+m.avgWon.toFixed(1)+' days</div></div>';
+  const forecast=[...app.querySelectorAll('.form-card')].find(x=>x.querySelector('h2')?.textContent==='Sales forecast');
+  if(forecast)forecast.insertAdjacentElement('afterend',section);else app.prepend(section);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
