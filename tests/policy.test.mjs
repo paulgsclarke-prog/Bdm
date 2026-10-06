@@ -7,7 +7,7 @@ test('trusted mapping preserves legacy user identity',()=>assert.deepEqual(membe
 test('reject unknown keys and malformed snapshots',()=>{assert.throws(()=>validateData({bdm_active_user:'U1'}),{status:400});assert.throws(()=>validateData({bdm_snapshots:[{}]}),{status:400});});
 test('staff cannot promote themselves or change reports',()=>{assert.throws(()=>authoriseWrite({}, {bdm_users:[{id:'U2',manager:true}]},staff),{status:403});assert.throws(()=>authoriseWrite({}, {bdm_snapshots:[]},staff),{status:403});});
 test('staff append their own calls without rewriting history',()=>{const old={bdm_activity:[{audit:{userId:'U1'},detail:'saved'}]};authoriseWrite(old,{bdm_activity:[...old.bdm_activity,{audit:{userId:'U2'}}]},staff);assert.throws(()=>authoriseWrite(old,{bdm_activity:[{audit:{userId:'U2'}}]},staff),{status:403});});
-test('lead updates retain creator credit and cannot delete records',()=>{const l={id:'L1',audit:{userId:'U1'},createdAt:'2026-10-05',stage:'Opportunity'};authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,stage:'Quoted'}]},staff);assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,audit:{userId:'U2'}}]},staff),{status:403});assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[]},staff),{status:403});});
+test('lead updates retain creator credit and cannot delete records',()=>{const l={id:'L1',audit:{userId:'U1'},createdAt:'2026-10-05',stage:'Opportunity',followUpDate:'2026-10-06'};authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,stage:'Quoted'}]},staff);assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[{...l,audit:{userId:'U2'}}]},staff),{status:403});assert.throws(()=>authoriseWrite({bdm_leads:[l]},{bdm_leads:[]},staff),{status:403});});
 test('staff target history remains per-user',()=>{authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:1},U2:{a:2}}},staff);assert.throws(()=>authoriseWrite({bdm_target_history:{U1:{a:1}}},{bdm_target_history:{U1:{a:2}}},staff),{status:403});});
 test('duplicate IDs are rejected',()=>assert.throws(()=>validateData({bdm_leads:[{id:'L1'},{id:'L1'}]}),{status:400}));
 test('manager can migrate reports and settings',()=>authoriseWrite({}, {bdm_users:[{id:'U1',manager:true}],bdm_snapshots:[{customers:[]}]},manager));
@@ -15,3 +15,19 @@ test('new calls may be prepended as in the existing app',()=>authoriseWrite({bdm
 const owner={id:'user_owner',primaryEmailAddressId:'email1',emailAddresses:[{id:'email1',emailAddress:'owner@example.com',verification:{status:'verified'}}],privateMetadata:{}};
 test('only the configured verified primary email can bootstrap the manager',()=>{assert.deepEqual(bootstrapManager(owner,'owner@example.com'),{bdmUserId:'U1',bdmRole:'manager',bdmBootstrapCompleted:true});assert.equal(bootstrapManager(owner,'different@example.com'),null);assert.equal(bootstrapManager(owner,undefined),null);assert.equal(bootstrapManager({...owner,emailAddresses:[{...owner.emailAddresses[0],verification:{status:'unverified'}}]},'owner@example.com'),null);});
 test('bootstrap cannot replace existing or revoked membership',()=>{assert.equal(bootstrapManager({...owner,privateMetadata:{bdmRole:'staff',bdmUserId:'U2'}},'owner@example.com'),null);assert.equal(bootstrapManager({...owner,privateMetadata:{bdmAccessRevoked:true}},'owner@example.com'),null);});
+test('open leads require follow-up dates when created or changed',()=>{
+ const legacy={id:'L0',audit:{userId:'U1'},createdAt:'2026-10-01',stage:'Opportunity'};
+ authoriseWrite({bdm_leads:[legacy]},{bdm_leads:[legacy]},staff);
+ assert.throws(()=>authoriseWrite({bdm_leads:[legacy]},{bdm_leads:[{...legacy,stage:'Quoted'}]},staff),{status:400});
+ const open={id:'L2',audit:{userId:'U2'},createdAt:'2026-10-05',stage:'Opportunity'};
+ assert.throws(()=>authoriseWrite({bdm_leads:[]},{bdm_leads:[open]},staff),{status:400});
+ authoriseWrite({bdm_leads:[]},{bdm_leads:[{...open,followUpDate:'2026-10-06'}]},staff);
+ authoriseWrite({bdm_leads:[]},{bdm_leads:[{...open,stage:'Won',status:'won'}]},staff);
+});
+test('surveys are shared while campaigns remain manager-only',()=>{
+ const survey={id:'S1',createdBy:'U2',ownerId:'U2',status:'booked'};
+ authoriseWrite({bdm_surveys:[]},{bdm_surveys:[survey]},staff);
+ assert.throws(()=>authoriseWrite({bdm_surveys:[]},{bdm_surveys:[{...survey,id:'S2',createdBy:'U1'}]},staff),{status:403});
+ assert.throws(()=>authoriseWrite({bdm_campaigns:[]},{bdm_campaigns:[{id:'C1',active:true}]},staff),{status:403});
+ authoriseWrite({bdm_campaigns:[]},{bdm_campaigns:[{id:'C1',active:true}]},manager);
+});
