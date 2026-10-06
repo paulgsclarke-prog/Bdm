@@ -4378,9 +4378,16 @@ function releaseGuard(button){
   if(!button)return;button.dataset.busy='0';button.disabled=false;button.classList.remove('save-busy');if(button.dataset.originalText)button.textContent=button.dataset.originalText;
 }
 function closeCustomerFollowups(customerId,leadId,userId){
-  const now=new Date().toISOString();
-  followups.forEach(f=>{if(!f.completedAt&&String(f.customerId)===String(customerId)){f.completedAt=now;f.completedBy=userId;f.closedReason='Lead closed';}});
-  const lead=leads.find(l=>String(l.id)===String(leadId));
+  const now=new Date().toISOString(),target=String(leadId);
+  followups.forEach(f=>{
+    const linked=String(f.leadId||f.sourceLeadId||'')===target;
+    if(!f.completedAt&&linked){
+      f.completedAt=now;
+      f.completedBy=userId;
+      f.closedReason='Lead closed';
+    }
+  });
+  const lead=leads.find(l=>String(l.id)===target);
   if(lead){lead.followUpDate='';lead.nextActionReason='';}
   storage.set('bdm_followups',followups);
 }
