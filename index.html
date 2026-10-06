@@ -5424,6 +5424,64 @@ renderHome=function(){
   document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(refreshPeriodCompletionCue,0)));
 };
 
+
+/* V48: consolidated final Home renderer. */
+renderHome=function(){
+  currentView='home';title.textContent='Today';setNav('home');
+  const u=activeUser(),p=periodInfo(new Date());
+  if(!u){
+    app.innerHTML='<section class="form-card"><h2>Select a user</h2><p class="muted">Choose your user to see target progress.</p></section>';
+    return;
+  }
+
+  const daily=targetStatus(u.id),streak=userStreak(u.id);
+  const dailyItems=daily.keys.map(k=>({
+    label:{calls:'Calls',conversations:'Conversations',leads:'Leads',surveys:'Surveys'}[k],
+    actual:daily.actual[k],target:daily.targets[k],format:'number'
+  }));
+  const dailyOverall=periodRingOverall(dailyItems);
+
+  const mine=personalPeriodItems(u.id),depot=depotPeriodItems();
+  let periodItems=[],periodTitle='My targets',showSwitch=false;
+  if(u.manager&&mine.length&&depot.length){
+    showSwitch=true;
+    periodItems=homePeriodView==='depot'?depot:mine;
+    periodTitle=homePeriodView==='depot'?'Depot targets':'My targets';
+  }else if(mine.length){
+    periodItems=mine;periodTitle='My targets';homePeriodView='mine';
+  }else{
+    periodItems=depot;periodTitle='Depot targets';homePeriodView='depot';
+  }
+  const periodOverall=periodRingOverall(periodItems),nba=nextBestActionForUser();
+
+  app.innerHTML='<div class="simple-home">'+
+    '<section class="simple-home-head"><div><h2>'+esc(u.name)+'</h2><div class="sub">'+esc(p.label)+' · '+fmtShortDate(p.start)+' – '+fmtShortDate(p.end)+'</div></div><span class="user-chip">'+(u.manager?'<span class="manager-star">★</span>':'')+'Today</span></section>'+
+    '<section class="ring-section" id="dailyRingSection"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+dailyOverall+'% overall</span></div>'+
+      (dailyItems.length?'<div class="ring-grid">'+dailyItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
+      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div></section>'+
+    '<section class="ring-section" id="periodRingSection"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
+      (showSwitch?'<div class="period-switch"><button data-period-view="mine" class="'+(homePeriodView==='mine'?'active':'')+'">My targets</button><button data-period-view="depot" class="'+(homePeriodView==='depot'?'active':'')+'">Depot targets</button></div>':'<div class="sub" style="font-weight:800;margin:0 0 10px">'+esc(periodTitle)+'</div>')+
+      (periodItems.length?'<div class="ring-grid">'+periodItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set period targets in Settings.</small></div>')+
+      '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
+    (daily.complete?'<section class="all-targets-complete"><div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+daily.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+daily.actual[k]+'/'+daily.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small></section>':'')+
+    (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
+  '</div>';
+
+  if(periodItems.length&&periodItems.every(x=>n(x.target)>0&&n(x.actual)>=n(x.target))){
+    const note=document.createElement('div');note.className='period-complete-note';
+    note.textContent=(u.manager&&homePeriodView==='depot'?'Depot':'Period')+' targets achieved';
+    document.getElementById('periodRingSection').querySelector('.home-summary-strip').insertAdjacentElement('beforebegin',note);
+  }
+
+  document.querySelectorAll('[data-period-view]').forEach(b=>b.onclick=()=>{homePeriodView=b.dataset.periodView;renderHome();});
+  if(nba){
+    document.getElementById('simpleStart').onclick=()=>openQueue('day');
+    document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
+  }
+  wireHomeRingActions();
+  wirePeriodPace();
+};
+
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
 document.getElementById('homeBtn').onclick=renderHome;
 document.getElementById('customerSearchBtn').onclick=()=>renderCustomerSearch();
