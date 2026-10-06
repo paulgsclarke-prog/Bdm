@@ -4728,10 +4728,10 @@ function nextBestActionForUser(){
   const due=ownDue(activeUserId);
   if(due.length){
     const f=due[0],c=customerForFollowup(f);
-    return {customer:c,reason:f.reason||'Follow-up due',source:'followup'};
+    return {customer:c,reason:f.reason||'Follow-up due',source:'followup',item:f,status:f.date<isoToday()?'Overdue':'Due today'};
   }
   const q=dailyQueue();
-  if(q.length)return {customer:q[0],reason:q[0].offer||q[0].workflowLabel||'Priority customer call',source:'queue'};
+  if(q.length)return {customer:q[0],reason:q[0].offer||q[0].workflowLabel||'Priority customer call',source:'queue',status:'Priority call'};
   return null;
 }
 const nbaHomeRenderer=renderHome;
@@ -5291,10 +5291,10 @@ renderHome=function(){
     '<section class="ring-section"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
       (periodRings.length?'<div class="ring-grid">'+periodRings.join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set sales, margin, lead and contact targets in Settings.</small></div>')+
       '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
-    (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
+    (nba?'<section class="simple-next"><small>NEXT BEST ACTION · '+esc(nba.status||'Priority')+'</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.customer.phone?'<span>'+esc(nba.customer.phone)+'</span>':'')+(nba.source==='followup'&&nba.item?.date?'<span>'+esc(nba.item.date)+'</span>':'')+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">'+(nba.source==='followup'?'Start follow-up':'Start call')+'</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
   '</div>';
   if(nba){
-    document.getElementById('simpleStart').onclick=()=>openQueue('day');
+    document.getElementById('simpleStart').onclick=()=>nba.source==='followup'&&nba.item?openFollowupCall(nba.item):openQueue('day');
     document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
   }
 };
