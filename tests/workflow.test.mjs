@@ -96,3 +96,19 @@ test('closing one lead only closes follow-ups linked to that lead',()=>{
  assert.equal(leads[0].followUpDate,'');
  assert.equal(leads[1].followUpDate,'2026-10-07');
 });
+test('Won leads persist actual value and margin in the original save',()=>{
+ const nodes=new Map(),document={getElementById(id){if(!nodes.has(id))nodes.set(id,{value:'',hidden:false});return nodes.get(id);},querySelectorAll(){return [];}};
+ const leads=[];
+ const h=build(['renderSalesLeadForm','validateSalesLead'],{document,app:{},title:{},setNav:()=>{},currentView:'',users:[{id:'U1',name:'Manager'}],activeUserId:'U1',leads,
+ leadFormCustomers:()=>[{id:'A',name:'Customer'}],esc:x=>String(x??''),LEAD_STAGES:['Opportunity','Quoted','Won','Lost'],LOSS_REASONS:['Price'],normalizeStage:l=>l.stage,staffOptions:()=>'',n:v=>Number(v||0),kitchenHandoverFields:()=>'',workingDayKey:()=>'',isoToday:()=>'2026-10-05',readKitchenHandover:()=>({}),validateHandover:()=>null,
+ requestPin:opts=>opts.onSuccess({id:'U1',name:'Manager'}),auditStamp:()=>({userId:'U1'}),storage:{set:()=>{}},updateTargetHistory:()=>{},renderLeads:()=>{}});
+ h.renderSalesLeadForm(null,{id:'A',name:'Customer'});
+ const values={salesCustomer:'A',salesCategory:'Joinery',salesDetails:'Doors',salesStage:'Won',salesOwner:'U1',salesQuote:'',salesValue:'1000',salesMargin:'300',salesRequired:'2026-10-10',salesFollow:'',salesAction:'',salesLoss:'',salesNotes:'',wonValue:'920',wonMargin:'240'};
+ for(const [id,value] of Object.entries(values))document.getElementById(id).value=value;
+ document.getElementById('saveSalesLead').onclick();
+ assert.equal(leads.length,1);
+ assert.equal(leads[0].wonValue,920);
+ assert.equal(leads[0].wonMargin,240);
+ assert.ok(leads[0].wonAt);
+ assert.equal(leads[0].followUpDate,'');
+});
