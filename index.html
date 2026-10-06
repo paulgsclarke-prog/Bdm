@@ -1179,6 +1179,31 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .customer-record-warning{border:1px solid #e0c6c6;border-left:5px solid #a13a3f;border-radius:12px;background:#fff;padding:12px;margin-top:10px}
 .customer-record-warning b{display:block}.customer-record-warning small{display:block;color:var(--muted);margin-top:3px}
 
+
+/* V53 compact Home target bars */
+.today-overall{display:flex;align-items:baseline;gap:7px;margin:-2px 0 10px}
+.today-overall b{font-size:30px;line-height:1;color:var(--brand)}
+.today-overall span{font-size:12px;font-weight:800;color:var(--muted)}
+.home-target-list{display:grid;gap:8px}
+.home-target-bar{width:100%;border:0;background:#f7f8f7;border-radius:11px;padding:9px 10px;text-align:left;color:var(--ink)}
+.home-target-bar:active{transform:scale(.995)}
+.home-target-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}
+.home-target-line strong{font-size:13px}
+.home-target-value{font-size:12px;font-weight:850;color:var(--ink);white-space:nowrap}
+.home-target-status{font-size:10px;font-weight:850;color:var(--muted);white-space:nowrap}
+.home-target-status.done{color:#397246}
+.home-target-track{height:6px;background:#e2e6e3;border-radius:999px;overflow:hidden;margin-top:6px}
+.home-target-fill{height:100%;background:var(--brand);border-radius:999px}
+.home-target-fill.done{background:var(--green)}
+.ring-section.compact-targets{padding:13px 14px}
+.ring-section.compact-targets .ring-section-head{margin-bottom:7px}
+.ring-section.compact-targets .home-summary-strip{padding-top:8px}
+@media(max-width:420px){
+  .simple-home{gap:10px}
+  .ring-section.compact-targets{padding:12px}
+  .home-target-list{gap:6px}
+  .home-target-bar{padding:8px 9px}
+}
 </style>
 </head>
 <body>
@@ -5389,7 +5414,7 @@ function wireHomeRingActions(){
     'Margin':()=>renderStats(),
     'Customer contact':()=>renderStats()
   };
-  document.querySelectorAll('.progress-ring-card').forEach(card=>{
+  document.querySelectorAll('.progress-ring-card,.home-target-bar').forEach(card=>{
     const label=card.querySelector('strong')?.textContent;
     if(!actions[label])return;
     if(card.tagName!=='BUTTON'){
@@ -5468,6 +5493,13 @@ renderHome=function(){
 };
 
 
+function homeBar(label,actual,target,format='number'){
+  const a=n(actual),t=n(target),progress=t>0?Math.min(100,a/t*100):0,complete=t>0&&a>=t;
+  const show=v=>format==='money'?money(v):format==='percent'?Number(v).toFixed(0)+'%':Math.round(v).toLocaleString('en-GB');
+  const status=complete?'Done':Math.round(progress)+'%';
+  return '<button class="home-target-bar" type="button"><div class="home-target-line"><strong>'+esc(label)+'</strong><span class="home-target-value">'+show(a)+' / '+show(t)+'</span><span class="home-target-status '+(complete?'done':'')+'">'+status+'</span></div><div class="home-target-track"><div class="home-target-fill '+(complete?'done':'')+'" style="width:'+progress.toFixed(1)+'%"></div></div></button>';
+}
+
 /* V48: consolidated final Home renderer. */
 renderHome=function(){
   currentView='home';title.textContent='Today';setNav('home');
@@ -5499,12 +5531,12 @@ renderHome=function(){
 
   app.innerHTML='<div class="simple-home">'+
     '<section class="simple-home-head"><div><h2>'+esc(u.name)+'</h2><div class="sub">'+esc(p.label)+' · '+fmtShortDate(p.start)+' – '+fmtShortDate(p.end)+'</div></div><span class="user-chip">'+(u.manager?'<span class="manager-star">★</span>':'')+'Today</span></section>'+
-    '<section class="ring-section" id="dailyRingSection"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+dailyOverall+'% overall</span></div>'+
-      (dailyItems.length?'<div class="ring-grid">'+dailyItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
+    '<section class="ring-section compact-targets" id="dailyRingSection"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+daily.achieved.length+'/'+daily.keys.length+' targets</span></div><div class="today-overall"><b>'+dailyOverall+'%</b><span>of today complete</span></div>'+
+      (dailyItems.length?'<div class="home-target-list">'+dailyItems.map(x=>homeBar(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
       '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div></section>'+
-    '<section class="ring-section" id="periodRingSection"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
+    '<section class="ring-section compact-targets" id="periodRingSection"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
       (showSwitch?'<div class="period-switch"><button data-period-view="mine" class="'+(homePeriodView==='mine'?'active':'')+'">My targets</button><button data-period-view="depot" class="'+(homePeriodView==='depot'?'active':'')+'">Depot targets</button></div>':'<div class="sub" style="font-weight:800;margin:0 0 10px">'+esc(periodTitle)+'</div>')+
-      (periodItems.length?'<div class="ring-grid">'+periodItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set period targets in Settings.</small></div>')+
+      (periodItems.length?'<div class="home-target-list">'+periodItems.map(x=>homeBar(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set period targets in Settings.</small></div>')+
       '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
     (daily.complete?'<section class="all-targets-complete"><div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+daily.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+daily.actual[k]+'/'+daily.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small></section>':'')+
     (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
