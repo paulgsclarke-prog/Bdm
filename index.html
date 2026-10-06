@@ -1204,6 +1204,16 @@ body.manager-session #bottomNav .manager-only{display:block!important}
   .home-target-list{gap:6px}
   .home-target-bar{padding:8px 9px}
 }
+
+/* V54 compact Home attention strip */
+.home-attention{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.home-attention button{border:1px solid #e1e3df;background:#fff;border-radius:9px;padding:7px 5px;text-align:center;color:var(--ink)}
+.home-attention button b{display:block;font-size:16px;line-height:1}
+.home-attention button small{display:block;font-size:9px;color:var(--muted);margin-top:3px;white-space:nowrap}
+.home-attention button.alert{background:#fbf0ee;border-color:#edd5d1}
+.home-attention button.alert b{color:#91463e}
+.home-attention button.today{background:#eef4f2;border-color:#d7e4df}
+.home-attention button.today b{color:#3e6f66}
 </style>
 </head>
 <body>
@@ -5277,7 +5287,8 @@ renderHome=function(){
     '<section class="simple-home-head"><div><h2>'+esc(u.name)+'</h2><div class="sub">'+esc(p.label)+' · '+fmtShortDate(p.start)+' – '+fmtShortDate(p.end)+'</div></div><span class="user-chip">'+(u.manager?'<span class="manager-star">★</span>':'')+'Today</span></section>'+
     '<section class="ring-section"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+dailyOverall+'% overall</span></div>'+
       (dailyRings.length?'<div class="ring-grid">'+dailyRings.join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
-      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div></section>'+
+      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div>'+
+      '<div class="home-attention"><button id="homeOverdue" class="'+(homeOverdueLeads.length?'alert':'')+'"><b>'+homeOverdueLeads.length+'</b><small>Overdue</small></button><button id="homeDue" class="'+(homeDueLeads.length?'today':'')+'"><b>'+homeDueLeads.length+'</b><small>Due today</small></button><button id="homeSurveys" class="'+((homeSurveyCounts.today+homeSurveyCounts.overdue)?'today':'')+'"><b>'+(homeSurveyCounts.today+homeSurveyCounts.overdue)+'</b><small>Surveys</small></button></div></section>'+
     '<section class="ring-section"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
       (periodRings.length?'<div class="ring-grid">'+periodRings.join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set sales, margin, lead and contact targets in Settings.</small></div>')+
       '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
@@ -5509,7 +5520,11 @@ renderHome=function(){
     return;
   }
 
-  const daily=targetStatus(u.id),streak=userStreak(u.id);
+  const daily=targetStatus(u.id),streak=userStreak(u.id),today=isoToday();
+  const myOpenLeads=leads.filter(l=>String(l.ownerId)===String(u.id)&&!leadIsClosed(l));
+  const homeOverdueLeads=myOpenLeads.filter(l=>l.followUpDate&&l.followUpDate<today);
+  const homeDueLeads=myOpenLeads.filter(l=>l.followUpDate===today);
+  const homeSurveyCounts=surveyCounts(u.id);
   const dailyItems=daily.keys.map(k=>({
     label:{calls:'Calls',conversations:'Conversations',leads:'Leads',surveys:'Surveys'}[k],
     actual:daily.actual[k],target:daily.targets[k],format:'number'
@@ -5549,6 +5564,9 @@ renderHome=function(){
   }
 
   document.querySelectorAll('[data-period-view]').forEach(b=>b.onclick=()=>{homePeriodView=b.dataset.periodView;renderHome();});
+  document.getElementById('homeOverdue').onclick=()=>{leadDefaultFocusApplied=true;activeLeadFocus='overdue';renderLeads('all');};
+  document.getElementById('homeDue').onclick=()=>{leadDefaultFocusApplied=true;activeLeadFocus='today';renderLeads('all');};
+  document.getElementById('homeSurveys').onclick=()=>renderSurveys(u.id);
   if(nba){
     document.getElementById('simpleStart').onclick=()=>openQueue('day');
     document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
