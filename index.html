@@ -4251,8 +4251,8 @@ function customerRecordData(customerId){
   const transactions=recentTransactions.filter(t=>String(t.customerId)===id).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   const openLeads=custLeads.filter(l=>!leadIsClosed(l)).sort((a,b)=>String(a.followUpDate||'9999').localeCompare(String(b.followUpDate||'9999'))||n(b.value)-n(a.value));
   const nextActions=[
-    ...openLeads.filter(l=>l.followUpDate).map(l=>({date:l.followUpDate,label:l.nextActionReason||l.details||'Lead follow-up',kind:'Lead',leadId:l.id,owner:l.ownerName||''})),
-    ...custFollowups.filter(f=>f.date).map(f=>({date:f.date,label:f.reason||'Follow-up',kind:'Callback',owner:users.find(u=>u.id===f.ownerId)?.name||''}))
+    ...openLeads.filter(l=>l.followUpDate).map(l=>({date:l.followUpDate,label:l.nextActionReason||l.details||'Lead follow-up',kind:'Lead',leadId:l.id,ownerId:l.ownerId,owner:l.ownerName||''})),
+    ...custFollowups.filter(f=>f.date).map(f=>({date:f.date,label:f.reason||'Follow-up',kind:'Callback',ownerId:f.ownerId,owner:users.find(u=>u.id===f.ownerId)?.name||''}))
   ].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
   return {customer,raw,custLeads,custFollowups,custActivity,transactions,openLeads,nextActions};
 }
@@ -5655,7 +5655,7 @@ renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCusto
     if(next.kind==='Callback'&&!nextSection.querySelector('#recordNextCall')){
       const btn=document.createElement('button');btn.id='recordNextCall';btn.className='wide-btn';btn.textContent='Call now';
       nextSection.append(btn);
-      btn.onclick=()=>openFollowupCall({customerId:d.customer.id,customer:d.customer.name,reason:next.label,ownerId:users.find(u=>u.name===next.owner)?.id||activeUserId});
+      btn.onclick=()=>openFollowupCall({customerId:d.customer.id,customer:d.customer.name,reason:next.label,ownerId:next.ownerId||activeUserId});
     }
   }
   const missing=d.openLeads.filter(l=>!l.followUpDate);
