@@ -1131,6 +1131,20 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 /* V47 period completion cue */
 .period-complete-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:#eef6f2;color:#397246;font-size:12px;font-weight:850;text-align:center}
 
+
+/* V49 compact manager landing */
+.manager-compact{display:grid;gap:14px}
+.manager-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.manager-action-grid button{border:1px solid #d7d4cc;border-radius:12px;background:#fff;padding:13px 10px;font-weight:850;text-align:left}
+.manager-action-grid button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.manager-attention-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.manager-attention-tile{border:1px solid #ddd9d1;border-radius:12px;background:#fff;padding:12px;text-align:left}
+.manager-attention-tile b{display:block;font-size:22px}.manager-attention-tile small{display:block;color:var(--muted);margin-top:3px}
+.manager-attention-tile.alert{border-left:4px solid #a13a3f}
+.manager-attention-tile.warn{border-left:4px solid #b78625}
+.manager-staff-compact{border:1px solid #ddd9d1;border-radius:12px;background:#fff;padding:12px;margin-top:8px}
+.manager-staff-compact .mini-grid{margin-top:8px}
+
 </style>
 </head>
 <body>
@@ -5480,6 +5494,51 @@ renderHome=function(){
     document.getElementById('simpleStart').onclick=()=>openQueue('day');
     document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
   }
+  wireHomeRingActions();
+  wirePeriodPace();
+};
+
+
+/* V49: compact Manager landing using the same target definitions as Home. */
+renderManager=function(){
+  const u=activeUser();
+  if(!u?.manager){
+    requestPin({title:'Manager access',subtitle:'Enter a manager PIN',managerOnly:true,onSuccess:()=>renderManager()});
+    return;
+  }
+  currentView='manager';title.textContent='Manager';setNav('manager');
+  const p=currentPeriodSalesPeriod=currentSalesPeriodNumber(),today=isoToday();
+  const targetItems=depotPeriodItems(),forecast=pipelineForecast(),risk=pipelineRiskItems(),sur=surveyCounts();
+  const overdue=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate<today);
+  const due=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate===today);
+  const active=users.filter(x=>x.active!==false);
+
+  app.innerHTML='<div class="manager-compact">'+
+    '<section class="ring-section"><div class="ring-section-head"><h2>Depot targets</h2><span class="badge">'+periodRingOverall(targetItems)+'% overall</span></div>'+
+      (targetItems.length?'<div class="ring-grid">'+targetItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No depot targets set</b><small>Set P'+p+' targets in Settings.</small></div>')+
+      '<div class="home-summary-strip"><span>P'+p+' progress</span><span>'+targetItems.filter(x=>n(x.target)>0&&n(x.actual)>=n(x.target)).length+'/'+targetItems.length+' achieved</span></div></section>'+
+    '<section class="form-card"><div class="row"><div><h2>Needs attention</h2><p class="sub">Work that needs intervention now.</p></div><span class="badge">'+(overdue.length+risk.length+sur.overdue)+'</span></div><div class="manager-attention-grid">'+
+      '<button class="manager-attention-tile alert" id="compactOverdue"><b>'+overdue.length+'</b><small>Overdue leads</small></button>'+
+      '<button class="manager-attention-tile warn" id="compactDue"><b>'+due.length+'</b><small>Due today</small></button>'+
+      '<button class="manager-attention-tile alert" id="compactRisk"><b>'+risk.length+'</b><small>Pipeline risk</small></button>'+
+      '<button class="manager-attention-tile '+(sur.overdue?'alert':'')+'" id="compactSurveys"><b>'+(sur.today+sur.overdue)+'</b><small>Surveys today / overdue</small></button>'+
+    '</div></section>'+
+    '<section class="form-card"><h2>Forecast</h2><div class="forecast-grid"><div class="forecast-card"><b>'+money(forecast.periodValue)+'</b><small>Current-period pipeline</small></div><div class="forecast-card"><b>'+money(forecast.periodWeighted)+'</b><small>Weighted sales</small></div><div class="forecast-card"><b>'+money(forecast.periodMargin)+'</b><small>Weighted margin</small></div><div class="forecast-card"><b>'+forecast.period.length+'</b><small>Open opportunities</small></div></div></section>'+
+    '<section class="form-card"><div class="row"><div><h2>Staff</h2><p class="sub">Today and current-period progress.</p></div><span class="badge">'+active.length+'</span></div>'+
+      active.map(user=>{const d=targetStatus(user.id),x=userPeriodProgress(user.id),open=leads.filter(l=>l.ownerId===user.id&&!leadIsClosed(l)),over=open.filter(l=>l.followUpDate<today).length;return '<div class="manager-staff-compact"><div class="row"><div><b>'+esc(user.name)+'</b><small>'+d.achieved.length+'/'+d.keys.length+' daily targets · '+over+' overdue</small></div><button class="filter-btn" data-compact-staff="'+esc(user.id)+'">Open</button></div><div class="mini-grid"><div class="mini"><small>Calls</small><b>'+x.calls+'</b></div><div class="mini"><small>Leads</small><b>'+x.leads+'</b></div><div class="mini"><small>Pipeline</small><b>'+money(x.pipeline)+'</b></div><div class="mini"><small>Margin</small><b>'+money(x.margin)+'</b></div></div></div>';}).join('')+
+    '</section>'+
+    '<section class="form-card"><h2>Management tools</h2><div class="manager-action-grid"><button class="primary" id="compactAllocation">Work allocation</button><button id="compactCampaigns">Campaigns</button><button id="compactEod">End-of-day review</button><button id="compactStats">Full stats</button></div></section>'+
+  '</div>';
+
+  document.getElementById('compactOverdue').onclick=()=>managerOpenLeadList('Overdue leads',overdue);
+  document.getElementById('compactDue').onclick=()=>managerOpenLeadList('Leads due today',due);
+  document.getElementById('compactRisk').onclick=renderPipelineRisk;
+  document.getElementById('compactSurveys').onclick=()=>renderSurveys();
+  document.getElementById('compactAllocation').onclick=renderWorkAssignment;
+  document.getElementById('compactCampaigns').onclick=renderCampaignManager;
+  document.getElementById('compactEod').onclick=renderEndOfDay;
+  document.getElementById('compactStats').onclick=renderStats;
+  document.querySelectorAll('[data-compact-staff]').forEach(b=>b.onclick=()=>renderManagerStaff(b.dataset.compactStaff));
   wireHomeRingActions();
   wirePeriodPace();
 };
