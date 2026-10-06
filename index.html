@@ -1127,6 +1127,10 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .all-targets-complete .complete-mark{width:42px;height:42px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;background:#58715e;color:#fff;font-size:24px;font-weight:900}
 .all-targets-complete b{display:block;font-size:18px}.all-targets-complete small{display:block;color:var(--muted);margin-top:4px}
 
+
+/* V47 period completion cue */
+.period-complete-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:#eef6f2;color:#397246;font-size:12px;font-weight:850;text-align:center}
+
 </style>
 </head>
 <body>
@@ -5391,6 +5395,27 @@ renderHome=function(){
   const streak=userStreak(u.id);
   done.innerHTML='<div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+s.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+s.actual[k]+'/'+s.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small>';
   if(next)next.insertAdjacentElement('beforebegin',done);else app.querySelector('.simple-home')?.append(done);
+};
+
+
+/* V47: explicit period completion cue for the currently visible target set. */
+function refreshPeriodCompletionCue(){
+  const section=[...app.querySelectorAll('.ring-section')].find(s=>s.querySelector('.ring-section-head h2')?.textContent==='This period');
+  if(!section)return;
+  section.querySelector('.period-complete-note')?.remove();
+  const cards=[...section.querySelectorAll('.progress-ring-card')];
+  if(!cards.length)return;
+  const complete=cards.every(card=>(parseFloat(card.querySelector('.progress-ring-inner b')?.textContent)||0)>=100);
+  if(!complete)return;
+  const note=document.createElement('div');note.className='period-complete-note';
+  note.textContent=(activeUser()?.manager&&homePeriodView==='depot'?'Depot':'Period')+' targets achieved';
+  const summary=section.querySelector('.home-summary-strip');if(summary)summary.insertAdjacentElement('beforebegin',note);else section.append(note);
+}
+const periodCompleteHomeRenderer=renderHome;
+renderHome=function(){
+  periodCompleteHomeRenderer();
+  refreshPeriodCompletionCue();
+  document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(refreshPeriodCompletionCue,0)));
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
