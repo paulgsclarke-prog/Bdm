@@ -1788,7 +1788,7 @@ function updateTargetHistory(user){
   const s=targetStatus(user.id), key=workingDayKey(new Date());
   if(!targetHistory[user.id]) targetHistory[user.id]={};
   const was=targetHistory[user.id][key]?.complete;
-  targetHistory[user.id][key]={date:key,targets:{...s.targets},actual:{...s.actual},achieved:[...s.achieved],complete:s.complete};
+  targetHistory[user.id][key]={date:key,targets:{...s.targets},enabled:{...s.enabled},keys:[...s.keys],actual:{...s.actual},achieved:[...s.achieved],complete:s.complete};
   storage.set('bdm_target_history',targetHistory);
   if(s.complete && !was) setTimeout(()=>alert(`Target day complete for ${user.name}. ${[0,6].includes(new Date().getDay())?'Targets achieved.':'Streak day recorded.'}`),50);
 }
@@ -4030,7 +4030,7 @@ function renderTargetHistory(userId=activeUserId){
   const user=users.find(u=>u.id===userId)||activeUser();if(!user)return renderHome();
   currentView='targets';title.textContent='Target history';setNav('');
   const rows=targetHistoryRows(user.id,60),st=userStreak(user.id);
-  app.innerHTML=`<section class="form-card"><div class="row"><div><h2>${esc(user.name)}</h2><p class="sub">Daily target history · Monday to Friday streaks</p></div><span class="badge green">${st.current} day streak</span></div><div class="manager-action-row"><button id="targetHistoryBack">Back</button><button class="primary" id="targetHistoryToday">Today</button></div></section><section class="form-card"><div class="row"><b>Best streak</b><span class="metric">${st.best}</span></div>${rows.map(r=>{const keys=Object.keys(r.targets||{}).filter(k=>n(r.targets[k])>0);const summary=keys.map(k=>`${k} ${n(r.actual?.[k])}/${n(r.targets?.[k])}`).join(' · ');return `<div class="target-history-row"><span class="target-history-dot ${r.complete?'hit':''}">${r.complete?'✓':'·'}</span><div><b>${esc(r.date)}</b><small>${esc(summary||'No enabled targets')}</small></div><span class="badge ${r.complete?'green':''}">${r.complete?'Hit':'Not hit'}</span></div>`}).join('')||'<p class="muted">No target history recorded yet.</p>'}</section>`;
+  app.innerHTML=`<section class="form-card"><div class="row"><div><h2>${esc(user.name)}</h2><p class="sub">Daily target history · Monday to Friday streaks</p></div><span class="badge green">${st.current} day streak</span></div><div class="manager-action-row"><button id="targetHistoryBack">Back</button><button class="primary" id="targetHistoryToday">Today</button></div></section><section class="form-card"><div class="row"><b>Best streak</b><span class="metric">${st.best}</span></div>${rows.map(r=>{const keys=(r.keys||Object.keys(r.targets||{}).filter(k=>r.enabled?.[k]!==false&&n(r.targets[k])>0));const summary=keys.map(k=>`${k} ${n(r.actual?.[k])}/${n(r.targets?.[k])}`).join(' · ');return `<div class="target-history-row"><span class="target-history-dot ${r.complete?'hit':''}">${r.complete?'✓':'·'}</span><div><b>${esc(r.date)}</b><small>${esc(summary||'No enabled targets')}</small></div><span class="badge ${r.complete?'green':''}">${r.complete?'Hit':'Not hit'}</span></div>`}).join('')||'<p class="muted">No target history recorded yet.</p>'}</section>`;
   document.getElementById('targetHistoryBack').onclick=activeUser()?.manager&&user.id!==activeUserId?()=>renderManagerStaff(user.id):renderHome;
   document.getElementById('targetHistoryToday').onclick=renderHome;
 }
