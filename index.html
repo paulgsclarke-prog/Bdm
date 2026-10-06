@@ -3102,10 +3102,10 @@ function renderSettings(){
         ${(()=>{
           const t=currentPeriodTarget();
           return `<div class="user-form-grid">
-            <div class="setting-row"><label>Sales target £</label><input id="targetSales" type="number" value="${t.sales||''}"></div>
-            <div class="setting-row"><label>Margin target £</label><input id="targetMargin" type="number" value="${t.margin||''}"></div>
-            <div class="setting-row"><label>Lead target</label><input id="targetLeads" type="number" value="${t.leads||''}"></div>
-            <div class="setting-row"><label>Contact target %</label><input id="targetContact" type="number" value="${t.contactPct||''}"></div>
+            <div class="setting-row"><label>Sales target £</label><input id="targetSales" type="number" min="0" step="1" value="${t.sales||''}"></div>
+            <div class="setting-row"><label>Margin target £</label><input id="targetMargin" type="number" min="0" step="1" value="${t.margin||''}"></div>
+            <div class="setting-row"><label>Lead target</label><input id="targetLeads" type="number" min="0" step="1" value="${t.leads||''}"></div>
+            <div class="setting-row"><label>Contact target %</label><input id="targetContact" type="number" min="0" max="100" step="1" value="${t.contactPct||''}"></div>
           </div>`;
         })()}
         <h3 style="margin-top:16px">Staff targets</h3>
@@ -3114,10 +3114,12 @@ function renderSettings(){
           return `<div class="settings-card" style="margin-top:9px">
             <b>${u.name}</b>
             <div class="user-form-grid">
-              <div class="sub">Daily activity targets are set in Daily targets & streaks above.</div>
-              <div class="setting-row"><label>Leads/period</label><input data-ut="${u.id}" data-k="leads" type="number" value="${t.leads||''}"></div>
-              <div class="setting-row"><label>Pipeline £</label><input data-ut="${u.id}" data-k="pipeline" type="number" value="${t.pipeline||''}"></div>
-              <div class="setting-row"><label>Margin £</label><input data-ut="${u.id}" data-k="margin" type="number" value="${t.margin||''}"></div>
+              <div class="sub">These are period totals. Daily activity targets are set in Daily targets & streaks above.</div>
+              <div class="setting-row"><label>Calls / period</label><input data-ut="${u.id}" data-k="calls" type="number" min="0" step="1" value="${t.calls||''}"></div>
+              <div class="setting-row"><label>Conversations / period</label><input data-ut="${u.id}" data-k="conversations" type="number" min="0" step="1" value="${t.conversations||''}"></div>
+              <div class="setting-row"><label>Leads / period</label><input data-ut="${u.id}" data-k="leads" type="number" min="0" step="1" value="${t.leads||''}"></div>
+              <div class="setting-row"><label>Pipeline £</label><input data-ut="${u.id}" data-k="pipeline" type="number" min="0" step="1" value="${t.pipeline||''}"></div>
+              <div class="setting-row"><label>Margin £</label><input data-ut="${u.id}" data-k="margin" type="number" min="0" step="1" value="${t.margin||''}"></div>
             </div>
           </div>`;
         }).join('')}
@@ -3229,18 +3231,22 @@ function renderSettings(){
   };
 
   document.getElementById('saveTargets').onclick=()=>{
+    const depotValues={
+      sales:+document.getElementById('targetSales').value||0,
+      margin:+document.getElementById('targetMargin').value||0,
+      leads:+document.getElementById('targetLeads').value||0,
+      contactPct:+document.getElementById('targetContact').value||0
+    };
+    if(Object.values(depotValues).some(v=>v<0)){alert('Targets cannot be negative.');return;}
+    if(depotValues.contactPct>100){alert('Customer contact target cannot be above 100%.');return;}
+    const invalidStaff=[...document.querySelectorAll('[data-ut]')].some(inp=>(+inp.value||0)<0);
+    if(invalidStaff){alert('Staff targets cannot be negative.');return;}
     requestPin({
       title:'Save targets',
       subtitle:'Manager PIN required',
       managerOnly:true,
       onSuccess:(manager)=>{
-        periodTargets[p]={
-          sales:+document.getElementById('targetSales').value||0,
-          margin:+document.getElementById('targetMargin').value||0,
-          leads:+document.getElementById('targetLeads').value||0,
-          contactPct:+document.getElementById('targetContact').value||0,
-          audit:auditStamp(manager,'Period targets updated')
-        };
+        periodTargets[p]={...depotValues,audit:auditStamp(manager,'Period targets updated')};
         if(!userTargets[p]) userTargets[p]={};
         document.querySelectorAll('[data-ut]').forEach(inp=>{
           const uid=inp.dataset.ut, key=inp.dataset.k;
