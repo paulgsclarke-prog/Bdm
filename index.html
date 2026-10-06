@@ -2747,16 +2747,6 @@ function renderOutcome(type,c){
       <div class="sub">${c.name} · ${c.id}</div><h2>${labels[type]}</h2>${body}
 
       ${type==='contact'?`<div class="permission-toggle"><div><b>Survey booked</b><div class="sub">Counts towards the daily survey target.</div></div><input id="surveyBooked" type="checkbox"></div>`:''}
-      <div class="field"><label>Call duration</label>
-        <input id="callDuration" type="number" min="0" step="1" placeholder="Minutes">
-        <div class="duration-quick">
-          <button type="button" data-duration="1">1m</button>
-          <button type="button" data-duration="2">2m</button>
-          <button type="button" data-duration="5">5m</button>
-          <button type="button" data-duration="10">10m</button>
-          <button type="button" data-duration="15">15m</button>
-        </div>
-      </div>
       <button class="wide-btn" id="saveNext">Save & next customer</button>
       <button class="wide-btn" id="cancelOutcome" style="background:#edf2f0;color:#18302c">Back</button>
     </section>`;
@@ -2788,17 +2778,8 @@ function renderOutcome(type,c){
     };
   });
 
-  document.querySelectorAll('[data-duration]').forEach(btn=>{
-    btn.onclick=()=>{
-      document.getElementById('callDuration').value=btn.dataset.duration;
-      document.querySelectorAll('[data-duration]').forEach(x=>x.classList.remove('active'));
-      btn.classList.add('active');
-    };
-  });
   document.getElementById('cancelOutcome').onclick=()=>renderCustomer();
   document.getElementById('saveNext').onclick=()=>{
-    const duration=Number(document.getElementById('callDuration').value);
-    if(!Number.isFinite(duration)||duration<0){alert('Enter a valid call duration.');return;}
     if(type==='quote'){
       const value=Number(document.getElementById('value').value),margin=Number(document.getElementById('margin').value);
       if(!Number.isFinite(value)||value<0||!Number.isFinite(margin)||margin>value){alert('Check the quote value and margin.');return;}
@@ -2820,7 +2801,6 @@ function renderOutcome(type,c){
       notes:document.getElementById('notes')?.value || '',
       follow:document.getElementById('follow')?.value || '',
       deal:document.getElementById('deal')?.value || '',
-      durationMinutes:+document.getElementById('callDuration')?.value || 0,
       reasonCode:document.getElementById('reasonCode')?.value || '',
       surveyBooked:!!document.getElementById('surveyBooked')?.checked
     };
@@ -2857,7 +2837,6 @@ function renderOutcome(type,c){
           customerId:c.id,
           type:labels[type],
           detail,
-          durationMinutes:payload.durationMinutes,
           reasonCode:payload.reasonCode,
           surveyBooked:payload.surveyBooked,
           workflow:c.workflow||null,
@@ -2913,7 +2892,6 @@ function renderOutcome(type,c){
 function callAnalytics(){
   const callActs=activity.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type) && a.iso);
   const byDay={}, byHour={}, successByHour={};
-  let durationTotal=0,durationCount=0;
   callActs.forEach(a=>{
     const d=new Date(a.iso);
     const day=d.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'2-digit'});
@@ -2921,9 +2899,8 @@ function callAnalytics(){
     byDay[day]=(byDay[day]||0)+1;
     byHour[hour]=(byHour[hour]||0)+1;
     if(a.type==='Spoke to customer'||a.type==='Quote given') successByHour[hour]=(successByHour[hour]||0)+1;
-    if(n(a.durationMinutes)>0){durationTotal+=n(a.durationMinutes);durationCount++;}
   });
-  return {byDay,byHour,successByHour,avgDuration:durationCount?durationTotal/durationCount:0};
+  return {byDay,byHour,successByHour};
 }
 
 
@@ -3076,7 +3053,6 @@ function renderManager(){
         const maxSuccess=Math.max(1,...Object.values(a.successByHour));
         return `
           <div class="kpi-grid" style="margin-bottom:12px">
-            <div class="kpi-card"><span class="kpi-value">${a.avgDuration.toFixed(1)}m</span><span class="kpi-label">Average call duration</span></div>
             <div class="kpi-card"><span class="kpi-value">${Object.values(a.byDay).reduce((s,v)=>s+v,0)}</span><span class="kpi-label">Calls recorded</span></div>
           </div>
           <div class="settings-card">
@@ -3566,14 +3542,13 @@ const originalOutcome=renderOutcome;
 renderOutcome=function(type,c){
   originalOutcome(type,c);
   const follow=document.getElementById('follow');
-  if(follow){follow.min=isoToday();follow.parentElement.insertAdjacentHTML('beforeend',`<div class="pill-row"><button type="button" class="pill" data-next-days="1">Tomorrow</button><button type="button" class="pill" data-next-days="7">Next week</button></div><label>Next action reason<input id="nextReason" placeholder="What needs to happen?"></label><label>Next action owner<select id="nextOwner">${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}" ${u.id===activeUserId?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>`);document.querySelectorAll('[data-next-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.nextDays));follow.value=workingDayKey(d);});}
+  if(follow){follow.min=isoToday();follow.parentElement.insertAdjacentHTML('beforeend',`<div class="pill-row"><button type="button" class="pill" data-next-days="1">Tomorrow</button><button type="button" class="pill" data-next-days="7">Next week</button></div><label>Next action reason <span class="sub">(optional)</span><input id="nextReason" placeholder="What needs to happen?"></label><label>Next action owner<select id="nextOwner">${users.filter(u=>u.active!==false).map(u=>`<option value="${esc(u.id)}" ${u.id===activeUserId?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>`);document.querySelectorAll('[data-next-days]').forEach(b=>b.onclick=()=>{const d=new Date();d.setDate(d.getDate()+Number(b.dataset.nextDays));follow.value=workingDayKey(d);});}
   const reasons=allCallReasons(c).filter(r=>['newNurture','oldNurture','thanks'].includes(r.key)||r.key.includes(':'));
   if(type==='contact'||type==='quote')document.getElementById('saveNext').insertAdjacentHTML('beforebegin',`<section class="form-card"><h2>Actions covered in this conversation</h2>${reasons.map(r=>`<label style="display:block;margin:12px 0"><input type="checkbox" data-covered="${esc(r.key)}" checked> ${esc(r.label)} · ${esc(r.reason)}</label>`).join('')||'<p>Period contact will be recorded.</p>'}</section>`);
   if(type==='quote'){const owner=document.getElementById('nextOwner');owner.value=document.getElementById('leadOwner').value;owner.onchange=()=>{document.getElementById('leadOwner').value=owner.value;};document.getElementById('leadOwner').onchange=()=>{owner.value=document.getElementById('leadOwner').value;};}
   const save=document.getElementById('saveNext').onclick;
   document.getElementById('saveNext').onclick=()=>{
     if(follow?.value&&follow.value<isoToday()){alert('Choose today or a future follow-up date.');return;}
-    if(follow?.value&&!document.getElementById('nextReason').value.trim()){alert('Add a reason for the next action.');return;}
     pendingNextAction={customerId:c.id,customer:c.name,date:follow?.value||'',reason:document.getElementById('nextReason')?.value.trim()||'',ownerId:document.getElementById('nextOwner')?.value||activeUserId,deal:document.getElementById('deal')?.value||'',covered:[...document.querySelectorAll('[data-covered]:checked')].map(e=>e.dataset.covered),type};save();pendingNextAction=null;
   };
 };
@@ -3645,7 +3620,7 @@ function renderSalesLeadForm(existing=null,customer=null,returnTo=null){
   if(customer&&!customers.some(c=>c.id===String(customer.id)))customers.unshift(customer);
   title.textContent=editing?'Update lead':'Add lead';setNav('leads');currentView='leads';
   const customerId=String(l.customerId||customer?.id||'');
-  app.innerHTML=`<section class="form-card"><h2>${editing?esc(l.customer):'New sales opportunity'}</h2><p class="muted">Responsibility belongs to this lead. The customer account is shared.</p><div class="field"><label for="salesCustomer">Customer</label><select id="salesCustomer" ${editing?'disabled':''}><option value="">Choose customer</option>${customers.map(c=>`<option value="${esc(c.id)}" ${c.id===customerId?'selected':''}>${esc(c.name)} · ${esc(c.id)}</option>`).join('')}</select></div><div class="field"><label for="salesCategory">Lead type</label><select id="salesCategory"><option ${l.category==='Kitchen'||!l.category?'selected':''}>Kitchen</option><option ${l.category==='Joinery'?'selected':''}>Joinery</option></select></div><div class="field"><label for="salesDetails">Opportunity details</label><input id="salesDetails" value="${esc(l.details||'')}" placeholder="What is the customer planning to buy?"></div><div class="field"><label for="salesStage">Stage</label><select id="salesStage">${LEAD_STAGES.map(s=>`<option ${s===(editing?normalizeStage(l):'Opportunity')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="salesOwner">Lead responsibility / next action owner</label><select id="salesOwner">${staffOptions(l.ownerId||activeUserId,'Choose staff member')}</select></div><div class="field"><label for="salesQuote">Quotation number</label><input id="salesQuote" inputmode="numeric" maxlength="6" value="${esc(l.quoteNo||'')}" placeholder="6 digits once quoted"></div><div class="lead-form-grid"><div class="field"><label for="salesValue">Estimated value £</label><input id="salesValue" type="number" min="0" step="0.01" value="${n(l.value)}"></div><div class="field"><label for="salesMargin">Estimated margin £</label><input id="salesMargin" type="number" step="0.01" value="${n(l.margin)}"></div></div><div class="field"><label for="salesMarginPct">Margin %</label><input id="salesMarginPct" readonly placeholder="Calculated automatically"></div><div class="field"><label for="salesRequired">Estimated date required</label><input id="salesRequired" type="date" value="${esc(l.requiredByDate||'')}"></div><div class="field"><label for="salesFollow">Next action date</label><input id="salesFollow" type="date" value="${esc(l.followUpDate||'')}"></div><div class="pill-row"><button class="pill" data-sales-days="1">Tomorrow</button><button class="pill" data-sales-days="7">Next week</button></div><div class="field"><label for="salesAction">Next action</label><input id="salesAction" value="${esc(l.nextActionReason||'')}" placeholder="Call about quote, book design appointment…"></div><div class="field" id="salesLossWrap"><label for="salesLoss">Lost reason</label><select id="salesLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div><div class="field"><label for="salesNotes">Sales notes</label><textarea id="salesNotes">${esc(l.notes||'')}</textarea></div></section>${kitchenHandoverFields('sales',l)}<div id="salesError" role="alert"></div><button class="wide-btn" id="saveSalesLead">${editing?'Save changes':'Save lead'}</button><button class="wide-btn secondary" id="cancelSalesLead">Cancel</button>`;
+  app.innerHTML=`<section class="form-card"><h2>${editing?esc(l.customer):'New sales opportunity'}</h2><p class="muted">Responsibility belongs to this lead. The customer account is shared.</p><div class="field"><label for="salesCustomer">Customer</label><select id="salesCustomer" ${editing?'disabled':''}><option value="">Choose customer</option>${customers.map(c=>`<option value="${esc(c.id)}" ${c.id===customerId?'selected':''}>${esc(c.name)} · ${esc(c.id)}</option>`).join('')}</select></div><div class="field"><label for="salesCategory">Lead type</label><select id="salesCategory"><option ${l.category==='Kitchen'||!l.category?'selected':''}>Kitchen</option><option ${l.category==='Joinery'?'selected':''}>Joinery</option></select></div><div class="field"><label for="salesDetails">Opportunity details</label><input id="salesDetails" value="${esc(l.details||'')}" placeholder="What is the customer planning to buy?"></div><div class="field"><label for="salesStage">Stage</label><select id="salesStage">${LEAD_STAGES.map(s=>`<option ${s===(editing?normalizeStage(l):'Opportunity')?'selected':''}>${s}</option>`).join('')}</select></div><div class="field"><label for="salesOwner">Lead responsibility / next action owner</label><select id="salesOwner">${staffOptions(l.ownerId||activeUserId,'Choose staff member')}</select></div><div class="field"><label for="salesQuote">Quotation number</label><input id="salesQuote" inputmode="numeric" maxlength="6" value="${esc(l.quoteNo||'')}" placeholder="6 digits once quoted"></div><div class="lead-form-grid"><div class="field"><label for="salesValue">Estimated value £</label><input id="salesValue" type="number" min="0" step="0.01" value="${n(l.value)}"></div><div class="field"><label for="salesMargin">Estimated margin £</label><input id="salesMargin" type="number" step="0.01" value="${n(l.margin)}"></div></div><div class="field"><label for="salesMarginPct">Margin %</label><input id="salesMarginPct" readonly placeholder="Calculated automatically"></div><div class="field"><label for="salesRequired">Estimated date required</label><input id="salesRequired" type="date" value="${esc(l.requiredByDate||'')}"></div><div class="field"><label for="salesFollow">Next action date</label><input id="salesFollow" type="date" value="${esc(l.followUpDate||'')}"></div><div class="pill-row"><button class="pill" data-sales-days="1">Tomorrow</button><button class="pill" data-sales-days="7">Next week</button></div><div class="field"><label for="salesAction">Next action <span class="sub">(optional)</span></label><input id="salesAction" value="${esc(l.nextActionReason||'')}" placeholder="Call about quote, book design appointment…"></div><div class="field" id="salesLossWrap"><label for="salesLoss">Lost reason</label><select id="salesLoss"><option value="">Choose reason</option>${LOSS_REASONS.map(r=>`<option ${l.lossReason===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div><div class="field"><label for="salesNotes">Sales notes</label><textarea id="salesNotes">${esc(l.notes||'')}</textarea></div></section>${kitchenHandoverFields('sales',l)}<div id="salesError" role="alert"></div><button class="wide-btn" id="saveSalesLead">${editing?'Save changes':'Save lead'}</button><button class="wide-btn secondary" id="cancelSalesLead">Cancel</button>`;
   const updateMargin=()=>{const value=Number(document.getElementById('salesValue').value),margin=Number(document.getElementById('salesMargin').value);document.getElementById('salesMarginPct').value=value>0?(margin/value*100).toFixed(1)+'%':'';};
   document.getElementById('salesValue').oninput=updateMargin;document.getElementById('salesMargin').oninput=updateMargin;updateMargin();
   const refresh=()=>{document.getElementById('salesKitchen').hidden=document.getElementById('salesCategory').value!=='Kitchen';document.getElementById('salesLossWrap').hidden=document.getElementById('salesStage').value!=='Lost';};
@@ -3677,7 +3652,7 @@ function validateSalesLead(data,existing){
   if(data.quoteNo&&!/^\d{6}$/.test(data.quoteNo))return 'Quotation number must be exactly 6 digits.';
   if(['Quoted','Awaiting decision'].includes(data.stage)&&!data.quoteNo)return 'Add the six-digit quotation number for a quoted lead.';
   const closed=['Won','Lost'].includes(data.stage);
-  if(!closed&&(!data.followUpDate||!data.nextActionReason))return 'Set a next action date and describe what needs to happen.';
+  if(!closed&&!data.followUpDate)return 'Set a next action date.';
   if(!closed&&data.followUpDate<isoToday()&&data.followUpDate!==existing?.followUpDate)return 'Choose today or a future next action date.';
   if(data.stage==='Lost'&&!data.lossReason)return 'Choose a lost reason.';
   if(data.stage==='Appointment booked'&&!data.appointmentDate&&data.category==='Kitchen')return 'Set the kitchen appointment date.';
@@ -3931,13 +3906,6 @@ renderOutcome=function(type,c){
     const strip=document.createElement('div');strip.className='outcome-customer-strip';
     strip.innerHTML=`<b>${esc(c.name)}</b><span>Account ${esc(c.id)}</span>`;
     heading.insertAdjacentElement('afterend',strip);
-  }
-  const duration=document.getElementById('callDuration');
-  if(duration&&activeCallStartedAt&&activeCallCustomerId===String(c.id)&&!duration.value){
-    const mins=Math.max(1,Math.round((Date.now()-activeCallStartedAt)/60000));
-    duration.value=mins;
-    const note=document.createElement('div');note.className='sub';note.style.marginTop='6px';note.textContent='Call duration filled automatically. Adjust it if needed.';
-    duration.insertAdjacentElement('afterend',note);
   }
   const save=document.getElementById('saveNext');
   if(save)save.textContent=queueSnapshot?.length>1?'Save & next customer':'Save call';
