@@ -5624,8 +5624,8 @@ renderLeads=function(mode='all'){
   }
   document.querySelectorAll('[data-lead-card]').forEach(card=>{
     if(card.querySelector('.lead-detail-toggle'))return;
-    const paragraphs=[...card.querySelectorAll('p')].filter(p=>!p.classList.contains('sub')||/Next action|Designer|Best time/i.test(p.textContent||''));
-    const extra=[...card.querySelectorAll('p')].filter(p=>!paragraphs.includes(p));
+    const paragraphs=[...card.querySelectorAll('p')];
+    const extra=paragraphs.filter(p=>!/Follow-up|Next action|Designer|Best time/i.test(p.textContent||''));
     const audit=card.querySelector('.audit-line');if(audit)extra.push(audit);
     extra.forEach(el=>{el.classList.add('lead-secondary');el.hidden=true;});
     if(extra.length){
