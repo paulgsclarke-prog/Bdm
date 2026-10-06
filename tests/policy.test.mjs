@@ -31,3 +31,11 @@ test('surveys are shared while campaigns remain manager-only',()=>{
  assert.throws(()=>authoriseWrite({bdm_campaigns:[]},{bdm_campaigns:[{id:'C1',active:true}]},staff),{status:403});
  authoriseWrite({bdm_campaigns:[]},{bdm_campaigns:[{id:'C1',active:true}]},manager);
 });
+test('all shared target and workflow datasets remain accepted',()=>{
+ validateData({
+  bdm_daily_user_targets:{U1:{calls:10}},
+  bdm_surveys:[],
+  bdm_campaigns:[],
+  bdm_period_targets:{11:{sales:1000}}
+ });
+});
