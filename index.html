@@ -5445,18 +5445,26 @@ renderHome=function(){
 
 /* V45: show whether period target progress is ahead of or behind elapsed-period pace. */
 function wirePeriodPace(){
-  const section=[...app.querySelectorAll('.ring-section')].find(s=>s.querySelector('.ring-section-head h2')?.textContent==='This period');
-  if(!section)return;
+  const sections=[...app.querySelectorAll('.ring-section')].filter(s=>['This period','Depot targets'].includes(s.querySelector('.ring-section-head h2')?.textContent));
+  if(!sections.length)return;
   const p=periodInfo(new Date()),elapsed=Math.min(100,(((p.week-1)*7+p.day)/28)*100);
-  section.querySelectorAll('.progress-ring-card').forEach(card=>{
-    card.querySelector('.ring-pace')?.remove();
-    const shown=parseFloat(card.querySelector('.progress-ring-inner b')?.textContent)||0;
-    const diff=shown-elapsed,label=document.createElement('span');label.className='ring-pace';
-    if(shown>=100){label.classList.add('ahead');label.textContent='Target achieved';}
-    else if(diff>=3){label.classList.add('ahead');label.textContent=Math.round(diff)+'% ahead of pace';}
-    else if(diff<=-3){label.classList.add('behind');label.textContent=Math.round(Math.abs(diff))+'% behind pace';}
-    else label.textContent='On pace';
-    card.append(label);
+  sections.forEach(section=>{
+    section.querySelectorAll('.progress-ring-card,.home-target-bar').forEach(card=>{
+      card.querySelector('.ring-pace')?.remove();
+      let shown=0;
+      if(card.classList.contains('home-target-bar')){
+        const fill=card.querySelector('.home-target-fill');
+        shown=parseFloat(fill?.style.width)||0;
+      }else shown=parseFloat(card.querySelector('.progress-ring-inner b')?.textContent)||0;
+      const diff=shown-elapsed,label=document.createElement('span');label.className='ring-pace';
+      if(shown>=100){label.classList.add('ahead');label.textContent='Target achieved';}
+      else if(diff>=3){label.classList.add('ahead');label.textContent=Math.round(diff)+'% ahead of pace';}
+      else if(diff<=-3){label.classList.add('behind');label.textContent=Math.round(Math.abs(diff))+'% behind pace';}
+      else label.textContent='On pace';
+      if(card.classList.contains('home-target-bar')){
+        const line=card.querySelector('.home-target-line');if(line)line.insertAdjacentElement('afterend',label);else card.append(label);
+      }else card.append(label);
+    });
   });
 }
 const pacedHomeRenderer=renderHome;
@@ -5591,8 +5599,8 @@ renderManager=function(){
   const active=users.filter(x=>x.active!==false);
 
   app.innerHTML='<div class="manager-compact">'+
-    '<section class="ring-section"><div class="ring-section-head"><h2>Depot targets</h2><span class="badge">'+periodRingOverall(targetItems)+'% overall</span></div>'+
-      (targetItems.length?'<div class="ring-grid">'+targetItems.map(x=>homeRing(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No depot targets set</b><small>Set P'+p+' targets in Settings.</small></div>')+
+    '<section class="ring-section compact-targets"><div class="ring-section-head"><h2>Depot targets</h2><span class="badge">'+periodRingOverall(targetItems)+'% overall</span></div>'+
+      (targetItems.length?'<div class="home-target-list">'+targetItems.map(x=>homeBar(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No depot targets set</b><small>Set P'+p+' targets in Settings.</small></div>')+
       '<div class="home-summary-strip"><span>P'+p+' progress</span><span>'+targetItems.filter(x=>n(x.target)>0&&n(x.actual)>=n(x.target)).length+'/'+targetItems.length+' achieved</span></div></section>'+
     '<section class="form-card"><div class="row"><div><h2>Needs attention</h2><p class="sub">Work that needs intervention now.</p></div><span class="badge">'+(overdue.length+risk.length+sur.overdue)+'</span></div><div class="manager-attention-grid">'+
       '<button class="manager-attention-tile alert" id="compactOverdue"><b>'+overdue.length+'</b><small>Overdue leads</small></button>'+
