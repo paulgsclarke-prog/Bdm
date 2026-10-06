@@ -3098,7 +3098,7 @@ function renderSettings(){
       </section>
 
       <section class="settings-card">
-        <div class="row"><div><h2>P${p} targets</h2><div class="sub">Set period and staff activity targets.</div></div><span class="badge">Targets</span></div>
+        <div class="row"><div><h2>P${p} targets</h2><div class="sub">Depot Sales and Margin measure Won business in this period. Staff Pipeline remains open opportunity value.</div></div><span class="badge">Targets</span></div>
         ${(()=>{
           const t=currentPeriodTarget();
           return `<div class="user-form-grid">
@@ -5287,10 +5287,10 @@ function personalPeriodItems(userId){
   return items;
 }
 function depotPeriodItems(){
-  const t=currentPeriodTarget(),m=dashboardMetrics(),items=[];
-  if(n(t.sales)>0)items.push({label:'Sales',actual:m.leadValue,target:t.sales,format:'money'});
-  if(n(t.margin)>0)items.push({label:'Margin',actual:m.leadMargin,target:t.margin,format:'money'});
-  if(n(t.leads)>0)items.push({label:'Leads',actual:m.leadCount,target:t.leads,format:'number'});
+  const t=currentPeriodTarget(),m=dashboardMetrics(),won=periodMetrics(currentSalesPeriodNumber()),items=[];
+  if(n(t.sales)>0)items.push({label:'Sales',actual:n(won.wonValue),target:t.sales,format:'money'});
+  if(n(t.margin)>0)items.push({label:'Margin',actual:n(won.wonMargin),target:t.margin,format:'money'});
+  if(n(t.leads)>0)items.push({label:'Leads',actual:m.generatedLeadCount,target:t.leads,format:'number'});
   if(n(t.contactPct)>0)items.push({label:'Customer contact',actual:m.contactPct,target:t.contactPct,format:'percent'});
   return items;
 }
