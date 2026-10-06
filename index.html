@@ -1152,6 +1152,26 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .settings-shortcuts button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
 .settings-section-anchor{scroll-margin-top:82px}
 
+
+/* V51 compact operational Leads */
+.lead-focus-bar{background:#eef1ef;border-radius:12px;padding:4px;margin-bottom:10px}
+.lead-focus-bar .filter-btn{border:0;background:transparent;border-radius:9px;padding:9px 10px}
+.lead-focus-bar .filter-btn.active{background:#fff;color:var(--brand);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.history-card[data-lead-card]{border-radius:14px;padding:13px;box-shadow:0 2px 10px rgba(0,0,0,.035)}
+.history-card[data-lead-bucket="overdue"]{border-left:5px solid #a13a3f}
+.history-card[data-lead-bucket="today"]{border-left:5px solid #b78625}
+.history-card[data-lead-card] .facts{margin-top:10px}
+.history-card[data-lead-card] .lead-period{font-size:11px;font-weight:800;color:var(--muted);margin-top:3px}
+.history-card[data-lead-card] .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;overflow:visible}
+.history-card[data-lead-card] .toolbar .filter-btn{width:100%;margin:0;min-height:42px}
+.history-card[data-lead-card] .lead-call-btn{grid-column:1/-1}
+.lead-compact-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+.lead-compact-summary button{border:1px solid #d7d4cc;border-radius:12px;background:#fff;padding:10px 7px;text-align:center}
+.lead-compact-summary b{display:block;font-size:20px}.lead-compact-summary small{display:block;color:var(--muted);margin-top:3px}
+.lead-compact-summary .alert{border-left:4px solid #a13a3f}.lead-compact-summary .warn{border-left:4px solid #b78625}
+.lead-detail-toggle{border:0;background:#eef1ef;color:var(--brand);border-radius:9px;padding:8px 10px;font-weight:800;font-size:11px;margin-top:8px}
+.lead-secondary[hidden]{display:none!important}
+
 </style>
 </head>
 <body>
@@ -5584,6 +5604,42 @@ renderSettings=function(){
     '</div>';
   app.prepend(nav);
   document.querySelectorAll('[data-settings-jump]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.settingsJump)?.scrollIntoView({behavior:'smooth',block:'start'}));
+};
+
+
+/* V51: simplify Leads around follow-up work without removing existing functionality. */
+let leadDefaultFocusApplied=false;
+const compactLeadsRenderer=renderLeads;
+renderLeads=function(mode='all'){
+  compactLeadsRenderer(mode);
+  if(mode!=='all')return;
+  const today=isoToday(),open=leads.filter(l=>!leadIsClosed(l));
+  const overdue=open.filter(l=>l.followUpDate<today),dueToday=open.filter(l=>l.followUpDate===today);
+  const focusBar=app.querySelector('.lead-focus-bar');
+  if(focusBar&&!app.querySelector('.lead-compact-summary')){
+    const summary=document.createElement('div');summary.className='lead-compact-summary';
+    summary.innerHTML='<button class="alert" data-lead-summary="overdue"><b>'+overdue.length+'</b><small>Overdue</small></button><button class="warn" data-lead-summary="today"><b>'+dueToday.length+'</b><small>Due today</small></button><button data-lead-summary="open"><b>'+open.length+'</b><small>Open leads</small></button>';
+    focusBar.insertAdjacentElement('beforebegin',summary);
+    summary.querySelectorAll('[data-lead-summary]').forEach(b=>b.onclick=()=>{activeLeadFocus=b.dataset.leadSummary;setLeadFocus(activeLeadFocus);applyLeadListFilters();});
+  }
+  document.querySelectorAll('[data-lead-card]').forEach(card=>{
+    if(card.querySelector('.lead-detail-toggle'))return;
+    const paragraphs=[...card.querySelectorAll('p')].filter(p=>!p.classList.contains('sub')||/Next action|Designer|Best time/i.test(p.textContent||''));
+    const extra=[...card.querySelectorAll('p')].filter(p=>!paragraphs.includes(p));
+    const audit=card.querySelector('.audit-line');if(audit)extra.push(audit);
+    extra.forEach(el=>{el.classList.add('lead-secondary');el.hidden=true;});
+    if(extra.length){
+      const toggle=document.createElement('button');toggle.type='button';toggle.className='lead-detail-toggle';toggle.textContent='More details';
+      const toolbar=card.querySelector('.toolbar');(toolbar||card).insertAdjacentElement(toolbar?'beforebegin':'beforeend',toggle);
+      toggle.onclick=()=>{const show=extra[0]?.hidden!==false;extra.forEach(el=>el.hidden=!show);toggle.textContent=show?'Hide details':'More details';};
+    }
+  });
+  if(!leadDefaultFocusApplied){
+    leadDefaultFocusApplied=true;
+    activeLeadFocus='due';
+  }
+  setLeadFocus(activeLeadFocus);
+  applyLeadListFilters();
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
