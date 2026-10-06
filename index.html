@@ -3848,7 +3848,7 @@ function setLeadFocus(focus='all'){
   const today=isoToday();
   document.querySelectorAll('[data-lead-card]').forEach(card=>{
     const bucket=card.dataset.leadBucket;
-    const show=focus==='all'||focus===bucket||(focus==='due'&&(bucket==='today'||bucket==='overdue'));
+    const show=focus==='all'||focus===bucket||(focus==='due'&&(bucket==='today'||bucket==='overdue'))||(focus==='active'&&(bucket==='open'||bucket==='today'||bucket==='overdue'));
     card.hidden=!show;
   });
   document.querySelectorAll('[data-lead-focus]').forEach(b=>b.classList.toggle('active',b.dataset.leadFocus===focus));
@@ -3863,13 +3863,13 @@ renderLeads=function(mode='all'){
     if(pr[pa]!==pr[pb])return pr[pa]-pr[pb];
     return (a.requiredByDate||'9999-12-31').localeCompare(b.requiredByDate||'9999-12-31');
   });
-  const counts={all:sorted.length,due:0,overdue:0,today:0,open:0,won:0,lost:0};
-  sorted.forEach(l=>{const b=leadStatusBucket(l);counts[b]=(counts[b]||0)+1;if(b==='today'||b==='overdue')counts.due++;});
+  const counts={all:sorted.length,due:0,active:0,overdue:0,today:0,open:0,won:0,lost:0};
+  sorted.forEach(l=>{const b=leadStatusBucket(l);counts[b]=(counts[b]||0)+1;if(b==='today'||b==='overdue')counts.due++;if(['open','today','overdue'].includes(b))counts.active++;});
   const firstToolbar=app.querySelector('.toolbar');
   if(firstToolbar){
     const focus=document.createElement('div');focus.className='lead-focus-bar';
     focus.innerHTML=[
-      ['all','All'],['due','Due'],['overdue','Overdue'],['today','Today'],['open','Open'],['won','Won'],['lost','Lost']
+      ['all','All'],['due','Due'],['open','Other open'],['won','Won'],['lost','Lost']
     ].map(([key,label])=>`<button class="filter-btn" data-lead-focus="${key}">${label}<span class="lead-focus-count">${counts[key]||0}</span></button>`).join('');
     firstToolbar.insertAdjacentElement('afterend',focus);
   }
@@ -5676,7 +5676,7 @@ renderLeads=function(mode='all'){
   const focusBar=app.querySelector('.lead-focus-bar');
   if(focusBar&&!app.querySelector('.lead-compact-summary')){
     const summary=document.createElement('div');summary.className='lead-compact-summary';
-    summary.innerHTML='<button class="alert" data-lead-summary="overdue"><b>'+overdue.length+'</b><small>Overdue</small></button><button class="warn" data-lead-summary="today"><b>'+dueToday.length+'</b><small>Due today</small></button><button data-lead-summary="open"><b>'+open.length+'</b><small>Open leads</small></button>';
+    summary.innerHTML='<button class="alert" data-lead-summary="overdue"><b>'+overdue.length+'</b><small>Overdue</small></button><button class="warn" data-lead-summary="today"><b>'+dueToday.length+'</b><small>Due today</small></button><button data-lead-summary="active"><b>'+open.length+'</b><small>Open leads</small></button>';
     focusBar.insertAdjacentElement('beforebegin',summary);
     summary.querySelectorAll('[data-lead-summary]').forEach(b=>b.onclick=()=>{activeLeadFocus=b.dataset.leadSummary;setLeadFocus(activeLeadFocus);applyLeadListFilters();});
   }
