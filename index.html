@@ -1172,6 +1172,13 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .lead-detail-toggle{border:0;background:#eef1ef;color:var(--brand);border-radius:9px;padding:8px 10px;font-weight:800;font-size:11px;margin-top:8px}
 .lead-secondary[hidden]{display:none!important}
 
+
+/* V52 customer next-action clarity */
+.customer-record-section.action-overdue{border-left:5px solid #a13a3f}
+.customer-record-section.action-today{border-left:5px solid #b78625}
+.customer-record-warning{border:1px solid #e0c6c6;border-left:5px solid #a13a3f;border-radius:12px;background:#fff;padding:12px;margin-top:10px}
+.customer-record-warning b{display:block}.customer-record-warning small{display:block;color:var(--muted);margin-top:3px}
+
 </style>
 </head>
 <body>
@@ -4242,7 +4249,7 @@ function customerRecordData(customerId){
   const custFollowups=followups.filter(f=>String(f.customerId)===id&&!f.completedAt).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
   const custActivity=activity.filter(a=>String(a.customerId)===id).sort((a,b)=>String(b.iso||'').localeCompare(String(a.iso||'')));
   const transactions=recentTransactions.filter(t=>String(t.customerId)===id).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  const openLeads=custLeads.filter(l=>!leadIsClosed(l));
+  const openLeads=custLeads.filter(l=>!leadIsClosed(l)).sort((a,b)=>String(a.followUpDate||'9999').localeCompare(String(b.followUpDate||'9999'))||n(b.value)-n(a.value));
   const nextActions=[
     ...openLeads.filter(l=>l.followUpDate).map(l=>({date:l.followUpDate,label:l.nextActionReason||l.details||'Lead follow-up',kind:'Lead',leadId:l.id,owner:l.ownerName||''})),
     ...custFollowups.filter(f=>f.date).map(f=>({date:f.date,label:f.reason||'Follow-up',kind:'Callback',owner:users.find(u=>u.id===f.ownerId)?.name||''}))
@@ -5633,6 +5640,34 @@ renderLeads=function(mode='all'){
   }
   setLeadFocus(activeLeadFocus);
   applyLeadListFilters();
+};
+
+
+/* V52: keep customer next actions operational and follow-up driven. */
+const actionCustomerRecordRenderer=renderCustomerRecord;
+renderCustomerRecord=function(customerId,back=()=>renderCustomerSearch(lastCustomerQuery)){
+  actionCustomerRecordRenderer(customerId,back);
+  const d=customerRecordData(customerId),next=d.nextActions[0],today=isoToday();
+  const nextSection=[...app.querySelectorAll('.customer-record-section')].find(s=>s.querySelector('h2')?.textContent==='Next action');
+  if(nextSection&&next){
+    nextSection.classList.toggle('action-overdue',next.date<today);
+    nextSection.classList.toggle('action-today',next.date===today);
+    if(next.kind==='Callback'&&!nextSection.querySelector('#recordNextCall')){
+      const btn=document.createElement('button');btn.id='recordNextCall';btn.className='wide-btn';btn.textContent='Call now';
+      nextSection.append(btn);
+      btn.onclick=()=>openFollowupCall({customerId:d.customer.id,customer:d.customer.name,reason:next.label,ownerId:users.find(u=>u.name===next.owner)?.id||activeUserId});
+    }
+  }
+  const missing=d.openLeads.filter(l=>!l.followUpDate);
+  if(missing.length){
+    const openSection=[...app.querySelectorAll('.customer-record-section')].find(s=>s.querySelector('h2')?.textContent==='Open leads');
+    if(openSection&&!openSection.querySelector('.customer-record-warning')){
+      const warn=document.createElement('div');warn.className='customer-record-warning';
+      warn.innerHTML='<b>'+missing.length+' open lead'+(missing.length===1?'':'s')+' need a follow-up date</b><small>Every open lead should have its next action scheduled.</small><button class="wide-btn secondary" id="repairLeadFollowup">Open lead</button>';
+      openSection.prepend(warn);
+      document.getElementById('repairLeadFollowup').onclick=()=>renderSalesLeadForm(missing[0],null,()=>renderCustomerRecord(customerId,back));
+    }
+  }
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
