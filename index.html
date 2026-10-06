@@ -5548,13 +5548,14 @@ renderHome=function(){
     '<section class="simple-home-head"><div><h2>'+esc(u.name)+'</h2><div class="sub">'+esc(p.label)+' · '+fmtShortDate(p.start)+' – '+fmtShortDate(p.end)+'</div></div><span class="user-chip">'+(u.manager?'<span class="manager-star">★</span>':'')+'Today</span></section>'+
     '<section class="ring-section compact-targets" id="dailyRingSection"><div class="ring-section-head"><h2>Today</h2><span class="badge">'+daily.achieved.length+'/'+daily.keys.length+' targets</span></div><div class="today-overall"><b>'+dailyOverall+'%</b><span>of today complete</span></div>'+
       (dailyItems.length?'<div class="home-target-list">'+dailyItems.map(x=>homeBar(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No daily targets enabled</b><small>Daily targets can be set in Settings.</small></div>')+
-      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div></section>'+
+      '<div class="home-summary-strip"><span><b>'+daily.achieved.length+'/'+daily.keys.length+'</b> targets achieved</span><span><b>'+streak.current+'</b> day streak · best '+streak.best+'</span></div>'+
+      '<div class="home-attention"><button id="homeOverdue" class="'+(homeOverdueLeads.length?'alert':'')+'"><b>'+homeOverdueLeads.length+'</b><small>Overdue</small></button><button id="homeDue" class="'+(homeDueLeads.length?'today':'')+'"><b>'+homeDueLeads.length+'</b><small>Due today</small></button><button id="homeSurveys" class="'+((homeSurveyCounts.today+homeSurveyCounts.overdue)?'today':'')+'"><b>'+(homeSurveyCounts.today+homeSurveyCounts.overdue)+'</b><small>Surveys</small></button></div></section>'+
+    (daily.complete?'<section class="all-targets-complete"><div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+daily.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+daily.actual[k]+'/'+daily.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small></section>':'')+
+    (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
     '<section class="ring-section compact-targets" id="periodRingSection"><div class="ring-section-head"><h2>This period</h2><span class="badge">'+periodOverall+'% overall</span></div>'+
       (showSwitch?'<div class="period-switch"><button data-period-view="mine" class="'+(homePeriodView==='mine'?'active':'')+'">My targets</button><button data-period-view="depot" class="'+(homePeriodView==='depot'?'active':'')+'">Depot targets</button></div>':'<div class="sub" style="font-weight:800;margin:0 0 10px">'+esc(periodTitle)+'</div>')+
       (periodItems.length?'<div class="home-target-list">'+periodItems.map(x=>homeBar(x.label,x.actual,x.target,x.format)).join('')+'</div>':'<div class="home-complete"><b>No period targets set</b><small>Set period targets in Settings.</small></div>')+
       '<div class="home-summary-strip"><span>P'+p.period+' progress</span><span>Week '+p.week+' · Day '+p.day+'</span></div></section>'+
-    (daily.complete?'<section class="all-targets-complete"><div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+daily.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+daily.actual[k]+'/'+daily.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small></section>':'')+
-    (nba?'<section class="simple-next"><small>NEXT BEST ACTION</small><h2>'+esc(nba.customer.name)+'</h2><p>'+esc(nba.reason||'Priority customer action')+'</p><div class="simple-next-tags">'+(nba.priority?.reasons||[]).map(r=>'<span>'+esc(r)+'</span>').join('')+'</div><div class="simple-next-actions"><button class="primary" id="simpleStart">Start</button><button id="simpleRecord">Customer</button></div></section>':'<section class="home-complete"><b>Nothing urgent waiting</b><small>Use New Calls or Leads from the menu to review more work.</small></section>')+
   '</div>';
 
   if(periodItems.length&&periodItems.every(x=>n(x.target)>0&&n(x.actual)>=n(x.target))){
@@ -5564,9 +5565,9 @@ renderHome=function(){
   }
 
   document.querySelectorAll('[data-period-view]').forEach(b=>b.onclick=()=>{homePeriodView=b.dataset.periodView;renderHome();});
-  document.getElementById('homeOverdue').onclick=()=>{leadDefaultFocusApplied=true;activeLeadFocus='overdue';renderLeads('all');};
-  document.getElementById('homeDue').onclick=()=>{leadDefaultFocusApplied=true;activeLeadFocus='today';renderLeads('all');};
-  document.getElementById('homeSurveys').onclick=()=>renderSurveys(u.id);
+  document.getElementById('homeOverdue')?.addEventListener('click',()=>{leadDefaultFocusApplied=true;activeLeadFocus='overdue';renderLeads('all');});
+  document.getElementById('homeDue')?.addEventListener('click',()=>{leadDefaultFocusApplied=true;activeLeadFocus='today';renderLeads('all');});
+  document.getElementById('homeSurveys')?.addEventListener('click',()=>renderSurveys(u.id));
   if(nba){
     document.getElementById('simpleStart').onclick=()=>openQueue('day');
     document.getElementById('simpleRecord').onclick=()=>renderCustomerRecord(nba.customer.id,renderHome);
