@@ -5507,7 +5507,7 @@ renderManager=function(){
     return;
   }
   currentView='manager';title.textContent='Manager';setNav('manager');
-  const p=currentPeriodSalesPeriod=currentSalesPeriodNumber(),today=isoToday();
+  const p=currentSalesPeriodNumber(),today=isoToday();
   const targetItems=depotPeriodItems(),forecast=pipelineForecast(),risk=pipelineRiskItems(),sur=surveyCounts();
   const overdue=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate<today);
   const due=leads.filter(l=>!leadIsClosed(l)&&l.followUpDate===today);
