@@ -3613,6 +3613,7 @@ function renderSalesLeadForm(existing=null,customer=null,returnTo=null){
   document.getElementById('saveSalesLead').onclick=()=>{
     const value=id=>document.getElementById(id).value.trim();
     const data={customerId:value('salesCustomer'),category:value('salesCategory'),details:value('salesDetails'),stage:value('salesStage'),ownerId:value('salesOwner'),quoteNo:value('salesQuote'),value:Number(value('salesValue')),margin:Number(value('salesMargin')),requiredByDate:value('salesRequired'),followUpDate:value('salesFollow'),nextActionReason:value('salesAction'),lossReason:value('salesLoss'),notes:value('salesNotes'),...readKitchenHandover('sales',value('salesCategory'))};
+    if(data.stage==='Won'){data.wonValue=Number(document.getElementById('wonValue')?.value||data.value);data.wonMargin=Number(document.getElementById('wonMargin')?.value||data.margin);}
     const error=validateSalesLead(data,existing);
     if(error){document.getElementById('salesError').textContent=error;return;}
     const selected=customers.find(c=>c.id===data.customerId);data.customer=selected.name;
@@ -3620,8 +3621,8 @@ function renderSalesLeadForm(existing=null,customer=null,returnTo=null){
       const now=new Date().toISOString(),closed=['Won','Lost'].includes(data.stage),status=data.stage==='Won'?'won':data.stage==='Lost'?'lost':'open';
       const event={date:now,label:editing?'Lead updated · '+data.stage:'Lead created · '+data.stage,text:[data.details,'Next action: '+(closed?'Closed':data.followUpDate+' · '+data.nextActionReason),'Responsible: '+users.find(u=>u.id===data.ownerId)?.name,data.category==='Kitchen'?'Designer: '+(data.designerName||'Not assigned')+' · '+data.handoverStatus:'',data.handoverNotes,data.lossReason&&data.stage==='Lost'?'Lost: '+data.lossReason:''].filter(Boolean).join(' · '),by:user.name};
       const changed={...data,ownerName:users.find(u=>u.id===data.ownerId).name,status,followUpDate:closed?'':data.followUpDate,lossReason:data.stage==='Lost'?data.lossReason:'',updatedAudit:auditStamp(user,editing?'Lead updated':'Lead created')};
-      if(existing){const previous=normalizeStage(existing);Object.assign(existing,changed);if(closed&&previous!==data.stage)existing.closedAt=now;else if(!closed)existing.closedAt=null;existing.events=[...(existing.events||[]),event];}
-      else leads.unshift({...changed,id:'L'+Date.now()+'-'+Math.random().toString(36).slice(2,7),createdAt:now,closedAt:closed?now:null,audit:auditStamp(user,'Lead created'),events:[event]});
+      if(existing){const previous=normalizeStage(existing);Object.assign(existing,changed);if(closed&&previous!==data.stage)existing.closedAt=now;else if(!closed)existing.closedAt=null;if(data.stage==='Won')existing.wonAt=existing.wonAt||existing.closedAt||now;else existing.wonAt=null;existing.events=[...(existing.events||[]),event];}
+      else leads.unshift({...changed,id:'L'+Date.now()+'-'+Math.random().toString(36).slice(2,7),createdAt:now,closedAt:closed?now:null,wonAt:data.stage==='Won'?now:null,audit:auditStamp(user,'Lead created'),events:[event]});
       storage.set('bdm_leads',leads);if(!editing)updateTargetHistory(user);if(returnTo)returnTo('✓ Lead recorded. Continue this customer’s call.');else renderLeads();
     }});
   };
@@ -4806,23 +4807,8 @@ renderSalesLeadForm=function(existing=null,customer=null,returnTo=null){
     if(stage.value==='Won'){
       const v=n(document.getElementById('wonValue').value),m=n(document.getElementById('wonMargin').value);
       if(v<0||m<0||m>v){alert('Check the actual Won sales value and margin.');return;}
-      existing=existing||null;
-      if(existing){existing._pendingWonValue=v;existing._pendingWonMargin=m;}
-      else window.__bdmPendingWonActual={value:v,margin:m};
     }
     original();
-    if(stage.value==='Won'){
-      const wait=setInterval(()=>{
-        const target=existing||leads[0];
-        if(target&&normalizeStage(target)==='Won'){
-          clearInterval(wait);
-          const values=existing?{value:existing._pendingWonValue,margin:existing._pendingWonMargin}:window.__bdmPendingWonActual;
-          target.wonValue=n(values?.value??target.value);target.wonMargin=n(values?.margin??target.margin);target.wonAt=target.closedAt||new Date().toISOString();
-          delete target._pendingWonValue;delete target._pendingWonMargin;delete window.__bdmPendingWonActual;
-          storage.set('bdm_leads',leads);
-        }
-      },50);setTimeout(()=>clearInterval(wait),1500);
-    }
   };
 };
 const actualPeriodMetrics=periodMetrics;
