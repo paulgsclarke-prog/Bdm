@@ -2922,9 +2922,11 @@ function renderManager(){
               <div class="mini"><small>Overdue</small><b>${s.overdue}</b></div>
               <div class="mini"><small>Due today</small><b>${s.dueToday}</b></div>
               ${(()=>{
-                const t=userTarget(s.user.id);
-                return `<div class="mini"><small>Pipeline target</small><b>${t.pipeline?Math.round(s.value/t.pipeline*100):0}%</b></div>
-                <div class="mini"><small>Lead target</small><b>${t.leads?Math.round(s.owned.length/t.leads*100):0}%</b></div>`;
+                const x=userPeriodProgress(s.user.id),t=x.target;
+                return `<div class="mini"><small>Calls target</small><b>${t.calls?Math.round(x.calls/t.calls*100):0}%</b></div>
+                <div class="mini"><small>Conversations target</small><b>${t.conversations?Math.round(x.conversations/t.conversations*100):0}%</b></div>
+                <div class="mini"><small>Pipeline target</small><b>${t.pipeline?Math.round(x.pipeline/t.pipeline*100):0}%</b></div>
+                <div class="mini"><small>Lead target</small><b>${t.leads?Math.round(x.leads/t.leads*100):0}%</b></div>`;
               })()}
             </div>
           </div>`).join('')}
@@ -2935,11 +2937,11 @@ function renderManager(){
     <section class="dashboard-block">
       <div class="dashboard-title">Period target progress</div>
       ${(()=>{
-        const t=currentPeriodTarget(), m=dashboardMetrics();
+        const t=currentPeriodTarget(), m=dashboardMetrics(), won=periodMetrics(currentSalesPeriodNumber());
         const items=[
-          ['Sales',m.leadValue,t.sales,money(m.leadValue),money(t.sales)],
-          ['Margin',m.leadMargin,t.margin,money(m.leadMargin),money(t.margin)],
-          ['Leads',m.leadCount,t.leads,m.leadCount,t.leads],
+          ['Sales',n(won.wonValue),t.sales,money(n(won.wonValue)),money(t.sales)],
+          ['Margin',n(won.wonMargin),t.margin,money(n(won.wonMargin)),money(t.margin)],
+          ['Leads',m.generatedLeadCount,t.leads,m.generatedLeadCount,t.leads],
           ['Customer contact',m.contactPct,t.contactPct,m.contactPct+'%',t.contactPct+'%']
         ];
         return `<div class="target-grid">${items.map(([label,a,target,shownA,shownT])=>`
