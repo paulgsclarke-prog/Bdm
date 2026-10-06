@@ -81,3 +81,18 @@ test('quoted follow-up completes checked tasks, credits nurture once and advance
  const result=new Function('Date','requestPin','nurtureRecord','followups','leads','activity','users','storage','renderCustomer','n','isoToday','nurtureProgress',script)(LondonDate,opts=>opts.onSuccess({id:'U1',name:'Manager'}),()=>nurture,followups,[],[],[{id:'U1',name:'Manager'}],{set:()=>{}},()=>renders++,v=>Number(v||0),()=>'2026-10-05',{});
  assert.ok(followups[0].completedAt);assert.equal(nurture.newContacts,1);assert.equal(result.queueIndex,1);assert.equal(renders,1);
 });
+test('closing one lead only closes follow-ups linked to that lead',()=>{
+ const followups=[
+  {id:'F1',customerId:'A',leadId:'L1'},
+  {id:'F2',customerId:'A',leadId:'L2'},
+  {id:'F3',customerId:'A'}
+ ];
+ const leads=[{id:'L1',followUpDate:'2026-10-06',nextActionReason:'Call back'},{id:'L2',followUpDate:'2026-10-07'}];
+ const h=build(['closeCustomerFollowups'],{followups,leads,storage:{set:()=>{}}});
+ h.closeCustomerFollowups('A','L1','U1');
+ assert.ok(followups[0].completedAt);
+ assert.equal(followups[1].completedAt,undefined);
+ assert.equal(followups[2].completedAt,undefined);
+ assert.equal(leads[0].followUpDate,'');
+ assert.equal(leads[1].followUpDate,'2026-10-07');
+});
