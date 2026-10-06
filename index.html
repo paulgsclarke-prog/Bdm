@@ -1121,6 +1121,12 @@ body.manager-session #bottomNav .manager-only{display:block!important}
 .ring-pace.ahead{background:#e4f3e7;color:#397246}
 .ring-pace.behind{background:#faece8;color:#91463e}
 
+
+/* V46 target completion state */
+.all-targets-complete{background:#eef6f2;border:1px solid #c9dfd5;border-radius:18px;padding:15px;text-align:center;box-shadow:var(--shadow)}
+.all-targets-complete .complete-mark{width:42px;height:42px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;background:#58715e;color:#fff;font-size:24px;font-weight:900}
+.all-targets-complete b{display:block;font-size:18px}.all-targets-complete small{display:block;color:var(--muted);margin-top:4px}
+
 </style>
 </head>
 <body>
@@ -5212,8 +5218,11 @@ function userPeriodProgress(userId){
   const start=workingDayKey(range.start),end=workingDayKey(range.end);
   const created=leads.filter(l=>String(l.ownerId)===String(userId)&&(()=>{const d=recordDateKey(l.createdAt||l.audit?.iso);return d&&d>=start&&d<=end;})());
   const live=created.filter(l=>normalizeStage(l)!=='Lost');
+  const acts=activity.filter(a=>a.audit?.userId===userId&&(()=>{const d=recordDateKey(a.iso);return d&&d>=start&&d<=end;})());
   return {
     target,
+    calls:acts.filter(a=>['Spoke to customer','Voicemail left','No answer','Quote given'].includes(a.type)).length,
+    conversations:acts.filter(a=>['Spoke to customer','Quote given'].includes(a.type)).length,
     leads:created.length,
     pipeline:live.reduce((s,l)=>s+n(l.value),0),
     margin:live.reduce((s,l)=>s+n(l.margin),0)
@@ -5260,6 +5269,8 @@ function periodRingOverall(items){
 }
 function personalPeriodItems(userId){
   const x=userPeriodProgress(userId),items=[];
+  if(n(x.target.calls)>0)items.push({label:'My calls',actual:x.calls,target:x.target.calls,format:'number'});
+  if(n(x.target.conversations)>0)items.push({label:'My conversations',actual:x.conversations,target:x.target.conversations,format:'number'});
   if(n(x.target.leads)>0)items.push({label:'My leads',actual:x.leads,target:x.target.leads,format:'number'});
   if(n(x.target.pipeline)>0)items.push({label:'My pipeline',actual:x.pipeline,target:x.target.pipeline,format:'money'});
   if(n(x.target.margin)>0)items.push({label:'My margin',actual:x.margin,target:x.target.margin,format:'money'});
@@ -5316,6 +5327,8 @@ function wireHomeRingActions(){
     'Conversations':()=>renderStats(),
     'Leads':()=>renderLeads('all'),
     'Surveys':()=>renderSurveys(u.id),
+    'My calls':()=>renderCalls(),
+    'My conversations':()=>renderStats(),
     'My leads':()=>renderLeads('all'),
     'My pipeline':()=>renderLeads('all'),
     'My margin':()=>renderLeads('all'),
@@ -5363,6 +5376,21 @@ renderHome=function(){
   pacedHomeRenderer();
   wirePeriodPace();
   document.querySelectorAll('[data-period-view]').forEach(b=>b.addEventListener('click',()=>setTimeout(()=>{wireHomeRingActions();wirePeriodPace();},0)));
+};
+
+
+/* V46: one clean completion state when every enabled daily target is achieved. */
+const completionHomeRenderer=renderHome;
+renderHome=function(){
+  completionHomeRenderer();
+  const u=activeUser();if(!u)return;
+  const s=targetStatus(u.id);
+  if(!s.complete)return;
+  const next=app.querySelector('.simple-next');
+  const done=document.createElement('section');done.className='all-targets-complete';
+  const streak=userStreak(u.id);
+  done.innerHTML='<div class="complete-mark">✓</div><b>Today’s targets complete</b><small>'+s.keys.map(k=>k.charAt(0).toUpperCase()+k.slice(1)+' '+s.actual[k]+'/'+s.targets[k]).join(' · ')+'<br>'+streak.current+' day working streak</small>';
+  if(next)next.insertAdjacentElement('beforebegin',done);else app.querySelector('.simple-home')?.append(done);
 };
 
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>go(b.dataset.view));
